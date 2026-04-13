@@ -1,4 +1,5 @@
 {
+  "installCommand": "npm cache clean --force && npm install",
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "framework": "create-react-app",
