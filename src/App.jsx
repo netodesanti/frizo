@@ -989,6 +989,7 @@ function OrderRow({ order, onDelete, onEdit }) {
   const [lat, setLat] = useState(order.lat || null);
   const [lng, setLng] = useState(order.lng || null);
   const [notes, setNotes] = useState(order.notes || '');
+  const [pricePerBag, setPricePerBag] = useState(order.pricePerBag || DEFAULT_PRICE);
 
   const d = new Date(order.date);
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short' })
@@ -996,10 +997,11 @@ function OrderRow({ order, onDelete, onEdit }) {
 
   const handleSave = async () => {
     if (!customer.trim()) return;
-    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng });
+    const totalPrice = order.totalBags * pricePerBag;
+    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng, pricePerBag, totalPrice });
     setEditing(false);
   };
-  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setEditing(false); };
+  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setPricePerBag(order.pricePerBag || DEFAULT_PRICE); setEditing(false); };
 
   if (editing) {
     return (
@@ -1011,6 +1013,7 @@ function OrderRow({ order, onDelete, onEdit }) {
             {FLAVORS.map(f => order.quantities[f.id] > 0 ? <Badge key={f.id} variant={f.variant}>{f.emoji} {f.name} x{order.quantities[f.id]}</Badge> : null)}
           </div>
         </TableCell>
+        <TableCell><Input type="number" min="0" value={pricePerBag} onChange={e => setPricePerBag(parseInt(e.target.value, 10) || 0)} className="h-8 text-xs w-24" /></TableCell>
         <TableCell><StatusSelect value={order.status} onChange={s => onEdit(order._id, { status: s })} /></TableCell>
         <TableCell><Input placeholder="Notas" value={notes} onChange={e => setNotes(e.target.value)} className="h-8 text-xs" /></TableCell>
         <TableCell className="text-muted-foreground text-xs">{dateStr}</TableCell>
@@ -1059,6 +1062,7 @@ function OrderCard({ order, onDelete, onEdit }) {
   const [lat, setLat] = useState(order.lat || null);
   const [lng, setLng] = useState(order.lng || null);
   const [notes, setNotes] = useState(order.notes || '');
+  const [pricePerBag, setPricePerBag] = useState(order.pricePerBag || DEFAULT_PRICE);
 
   const d = new Date(order.date);
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -1066,10 +1070,11 @@ function OrderCard({ order, onDelete, onEdit }) {
 
   const handleSave = async () => {
     if (!customer.trim()) return;
-    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng });
+    const totalPrice = order.totalBags * pricePerBag;
+    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng, pricePerBag, totalPrice });
     setEditing(false);
   };
-  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setEditing(false); };
+  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setPricePerBag(order.pricePerBag || DEFAULT_PRICE); setEditing(false); };
 
   if (editing) {
     return (
@@ -1092,6 +1097,13 @@ function OrderCard({ order, onDelete, onEdit }) {
             <Label>Notas</Label>
             <textarea className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm min-h-[60px] resize-y focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary"
               placeholder="ej. entregar el viernes" value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+          <div>
+            <Label>Precio por bolsa (colones)</Label>
+            <Input type="number" min="0" value={pricePerBag}
+              onChange={e => setPricePerBag(parseInt(e.target.value, 10) || 0)}
+              className="w-40 font-heading font-extrabold" />
+            <p className="text-xs text-muted-foreground mt-1">{order.totalBags} bolsas x ₡{pricePerBag.toLocaleString()} = ₡{(order.totalBags * pricePerBag).toLocaleString()}</p>
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSave}>Guardar</Button>
