@@ -13,7 +13,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { AppSidebar } from '@/components/app-sidebar';
-import { LayoutGrid, List, Minus, Plus, Upload } from 'lucide-react';
+import { GoogleMap, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import { LayoutGrid, List, Minus, Plus, Upload, MapPin, CheckSquare, Square } from 'lucide-react';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 const FLAVORS = [
@@ -40,6 +41,56 @@ const STATUSES = [
 
 function Label({ children, className }) {
   return <label className={cn('block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2', className)}>{children}</label>;
+}
+
+// ─── Places Autocomplete ────────────────────────────────────────────────────
+function PlacesAutocomplete({ value, onChange, onSelect, placeholder, className }) {
+  const inputRef = useRef(null);
+  const autocompleteRef = useRef(null);
+  const [ready, setReady] = useState(!!window.google);
+
+  useEffect(() => {
+    if (window.google) { setReady(true); return; }
+    const interval = setInterval(() => {
+      if (window.google) { setReady(true); clearInterval(interval); }
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !inputRef.current || autocompleteRef.current) return;
+    autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
+      types: ['address'],
+    });
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current.getPlace();
+      if (place.geometry) {
+        onSelect(
+          place.formatted_address,
+          place.geometry.location.lat(),
+          place.geometry.location.lng()
+        );
+      }
+    });
+    return () => {
+      if (autocompleteRef.current) {
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [ready]);
+
+  return (
+    <input
+      ref={inputRef}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={cn(
+        'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground md:text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        className
+      )}
+    />
+  );
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -101,7 +152,7 @@ export default function App() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium text-muted-foreground">
-            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos' })[page]}
+            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion' })[page]}
           </span>
         </header>
         <main className="flex-1 p-6 md:p-8">
@@ -117,6 +168,8 @@ export default function App() {
               {page === 'neworder'  && <NewOrder stock={stock} onPlace={placeOrder} />}
               {page === 'bulk'      && <BulkUpload stock={stock} onPlace={bulkPlaceOrders} />}
               {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
+              {page === 'routes'    && <RoutePlanner orders={orders} />}
+              {page === 'settings'  && <Settings />}
             </div>
           )}
         </main>
@@ -270,6 +323,8 @@ function Inventory({ stock, setStock }) {
 function NewOrder({ stock, onPlace }) {
   const [customer, setCustomer] = useState('');
   const [location, setLocation] = useState('');
+  const [lat, setLat] = useState(null);
+  const [lng, setLng] = useState(null);
   const [notes, setNotes]       = useState('');
   const [quantities, setQuantities] = useState({ verde: 0, antioxidante: 0, boost: 0 });
   const [errors, setErrors] = useState({});
@@ -292,6 +347,7 @@ function NewOrder({ stock, onPlace }) {
     onPlace({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       customer: customer.trim(), location: location.trim(), notes: notes.trim(),
+      lat, lng,
       quantities: { ...quantities }, totalBags, status: 'pendiente',
       date: new Date().toISOString(),
     });
@@ -313,7 +369,12 @@ function NewOrder({ stock, onPlace }) {
 
             <div>
               <Label>Ubicacion / Direccion de Entrega</Label>
-              <Input placeholder="ej. Calle 5, Edificio Sol, Apto 3B" value={location} onChange={e => setLocation(e.target.value)} />
+              <PlacesAutocomplete
+                value={location}
+                onChange={setLocation}
+                onSelect={(addr, newLat, newLng) => { setLocation(addr); setLat(newLat); setLng(newLng); }}
+                placeholder="ej. Calle 5, Edificio Sol, Apto 3B"
+              />
             </div>
 
             <div>
@@ -503,6 +564,290 @@ function BulkUpload({ stock, onPlace }) {
   );
 }
 
+// ─── Settings ───────────────────────────────────────────────────────────────
+function Settings() {
+  const [factoryAddress, setFactoryAddress] = useState('Iglesia Santa Catalina de Alejandría');
+  const [factoryLat, setFactoryLat] = useState(null);
+  const [factoryLng, setFactoryLng] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'settings'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.factoryAddress) setFactoryAddress(data.factoryAddress);
+        if (data.factoryLat) setFactoryLat(data.factoryLat);
+        if (data.factoryLng) setFactoryLng(data.factoryLng);
+      }
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  const save = async () => {
+    await setDoc(doc(db, 'config', 'settings'), { factoryAddress, factoryLat, factoryLng });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  if (loading) return <div className="text-center py-12 text-muted-foreground">Cargando...</div>;
+
+  return (
+    <>
+      <PageHeader title="Configuracion" subtitle="Configura la direccion de la fabrica y otros ajustes" />
+      {saved && (
+        <div className="bg-primary/10 border border-primary/30 text-status-pagado rounded-lg px-4 py-3 text-sm font-medium mb-4">
+          Configuracion guardada exitosamente!
+        </div>
+      )}
+      <Card className="max-w-2xl">
+        <CardContent className="pt-6 space-y-5">
+          <div>
+            <Label>Direccion de la Fabrica (punto de partida para rutas)</Label>
+            <PlacesAutocomplete
+              value={factoryAddress}
+              onChange={setFactoryAddress}
+              onSelect={(addr, lat, lng) => { setFactoryAddress(addr); setFactoryLat(lat); setFactoryLng(lng); }}
+              placeholder="ej. Iglesia Santa Catalina de Alejandría"
+            />
+            {factoryLat && factoryLng && (
+              <p className="text-xs text-muted-foreground mt-1">Coordenadas: {factoryLat.toFixed(6)}, {factoryLng.toFixed(6)}</p>
+            )}
+          </div>
+          <Button onClick={save}>Guardar Configuracion</Button>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+// ─── Route Planner ──────────────────────────────────────────────────────────
+function RoutePlanner({ orders }) {
+  const [settings, setSettings] = useState(null);
+  const [statusFilter, setStatusFilter] = useState(['pendiente', 'preparando']);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [directions, setDirections] = useState(null);
+  const [calculating, setCalculating] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'settings'), (snap) => {
+      if (snap.exists()) setSettings(snap.data());
+    });
+    return unsub;
+  }, []);
+
+  const eligibleOrders = orders.filter(o =>
+    statusFilter.includes(o.status || 'pendiente') && o.lat && o.lng
+  );
+  const ordersWithoutCoords = orders.filter(o =>
+    statusFilter.includes(o.status || 'pendiente') && (!o.lat || !o.lng)
+  );
+
+  const toggleOrder = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === eligibleOrders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(eligibleOrders.map(o => o._id)));
+    }
+  };
+
+  const toggleStatus = (statusId) => {
+    setStatusFilter(prev =>
+      prev.includes(statusId) ? prev.filter(s => s !== statusId) : [...prev, statusId]
+    );
+    setSelectedIds(new Set());
+    setDirections(null);
+  };
+
+  const calculateRoute = () => {
+    const selected = orders.filter(o => selectedIds.has(o._id));
+    if (selected.length === 0) { setError('Selecciona al menos un pedido.'); return; }
+    if (selected.length > 23) { setError('Maximo 23 paradas por ruta (limite de Google Maps).'); return; }
+    if (!settings?.factoryLat || !settings?.factoryLng) { setError('Configura la direccion de la fabrica en Configuracion.'); return; }
+    setError('');
+    setCalculating(true);
+
+    const directionsService = new window.google.maps.DirectionsService();
+    const origin = { lat: settings.factoryLat, lng: settings.factoryLng };
+
+    const request = selected.length === 1
+      ? { origin, destination: { lat: selected[0].lat, lng: selected[0].lng }, travelMode: 'DRIVING' }
+      : {
+          origin,
+          destination: origin,
+          waypoints: selected.map(o => ({ location: { lat: o.lat, lng: o.lng }, stopover: true })),
+          optimizeWaypoints: true,
+          travelMode: 'DRIVING',
+        };
+
+    directionsService.route(request, (result, status) => {
+      if (status === 'OK') { setDirections(result); }
+      else { setError('Error calculando la ruta: ' + status); }
+      setCalculating(false);
+    });
+  };
+
+  const getOptimizedStops = () => {
+    if (!directions) return [];
+    const selected = orders.filter(o => selectedIds.has(o._id));
+    if (selected.length === 1) {
+      return [{ order: selected[0], leg: directions.routes[0].legs[0], stopNumber: 1 }];
+    }
+    const waypointOrder = directions.routes[0].waypoint_order;
+    return waypointOrder.map((idx, i) => ({
+      order: selected[idx],
+      leg: directions.routes[0].legs[i],
+      stopNumber: i + 1,
+    }));
+  };
+
+  const totalDuration = directions
+    ? directions.routes[0].legs.reduce((sum, leg) => sum + leg.duration.value, 0)
+    : 0;
+  const totalDistance = directions
+    ? directions.routes[0].legs.reduce((sum, leg) => sum + leg.distance.value, 0)
+    : 0;
+
+  const mapCenter = settings?.factoryLat
+    ? { lat: settings.factoryLat, lng: settings.factoryLng }
+    : { lat: 8.9824, lng: -79.5199 };
+
+  return (
+    <>
+      <PageHeader title="Rutas" subtitle="Planifica rutas de entrega optimizadas desde la fabrica" />
+
+      {!settings?.factoryLat && (
+        <div className="bg-destructive/8 border border-destructive/25 text-destructive rounded-lg px-4 py-3 text-sm font-medium mb-4">
+          Configura la direccion de la fabrica en Configuracion antes de planificar rutas.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left panel: filters + order selection */}
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="pt-5 space-y-4">
+              <div>
+                <Label>Filtrar por estado</Label>
+                <div className="flex flex-wrap gap-2">
+                  {STATUSES.map(s => (
+                    <button key={s.id} onClick={() => toggleStatus(s.id)}
+                      className={cn('border-none bg-transparent cursor-pointer transition-opacity', !statusFilter.includes(s.id) && 'opacity-40')}>
+                      <Badge variant={s.variant}>{s.label}</Badge>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="mb-0">Pedidos ({eligibleOrders.length})</Label>
+                  {eligibleOrders.length > 0 && (
+                    <button onClick={toggleAll} className="text-xs text-primary font-semibold border-none bg-transparent cursor-pointer">
+                      {selectedIds.size === eligibleOrders.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                  {eligibleOrders.map(o => (
+                    <button key={o._id} onClick={() => toggleOrder(o._id)}
+                      className={cn('w-full flex items-center gap-2 text-left px-3 py-2 rounded-lg border border-border text-sm cursor-pointer transition-colors bg-transparent',
+                        selectedIds.has(o._id) ? 'bg-primary/10 border-primary/30' : 'hover:bg-muted')}>
+                      {selectedIds.has(o._id) ? <CheckSquare className="h-4 w-4 text-primary shrink-0" /> : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold truncate">{o.customer}</div>
+                        <div className="text-xs text-muted-foreground truncate">{o.location}</div>
+                      </div>
+                    </button>
+                  ))}
+                  {eligibleOrders.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">No hay pedidos con coordenadas para los estados seleccionados.</p>
+                  )}
+                </div>
+                {ordersWithoutCoords.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {ordersWithoutCoords.length} pedido{ordersWithoutCoords.length !== 1 ? 's' : ''} sin coordenadas (editalos para agregar ubicacion).
+                  </p>
+                )}
+              </div>
+
+              {error && <p className="text-destructive text-sm font-medium">{error}</p>}
+
+              <Button onClick={calculateRoute} disabled={calculating || selectedIds.size === 0} className="w-full">
+                {calculating ? 'Calculando...' : `Calcular Ruta (${selectedIds.size} parada${selectedIds.size !== 1 ? 's' : ''})`}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Route summary */}
+          {directions && (
+            <Card>
+              <CardContent className="pt-5">
+                <Label>Ruta optimizada</Label>
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-sm">
+                    <span className="font-heading font-extrabold text-primary w-6 text-center">F</span>
+                    <span className="font-semibold">Fabrica</span>
+                    <span className="text-xs text-muted-foreground ml-auto">Inicio</span>
+                  </div>
+                  {getOptimizedStops().map(stop => (
+                    <div key={stop.order._id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-sm">
+                      <span className="font-heading font-extrabold text-primary w-6 text-center">{stop.stopNumber}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{stop.order.customer}</div>
+                        <div className="text-xs text-muted-foreground">{stop.leg.distance.text} · {stop.leg.duration.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {orders.filter(o => selectedIds.has(o._id)).length > 1 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-sm">
+                      <span className="font-heading font-extrabold text-primary w-6 text-center">F</span>
+                      <span className="font-semibold">Regreso a fabrica</span>
+                      <span className="text-xs text-muted-foreground ml-auto">
+                        {directions.routes[0].legs[directions.routes[0].legs.length - 1].distance.text} · {directions.routes[0].legs[directions.routes[0].legs.length - 1].duration.text}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between text-sm font-semibold border-t border-border pt-2">
+                  <span>Total</span>
+                  <span>{(totalDistance / 1000).toFixed(1)} km · {Math.round(totalDuration / 60)} min</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right panel: map */}
+        <div className="lg:col-span-2">
+          <Card className="overflow-hidden">
+            <GoogleMap
+              mapContainerStyle={{ width: '100%', height: '600px' }}
+              center={mapCenter}
+              zoom={12}
+            >
+              {directions && <DirectionsRenderer directions={directions} />}
+              {!directions && settings?.factoryLat && (
+                <Marker position={{ lat: settings.factoryLat, lng: settings.factoryLng }} label="F" />
+              )}
+            </GoogleMap>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Orders List ────────────────────────────────────────────────────────────
 function OrdersList({ orders, onDelete, onEdit }) {
   const [view, setView] = useState('cards');
@@ -594,12 +939,14 @@ function StatusSelect({ value, onChange }) {
         {current.label}
       </Badge>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1 flex flex-col gap-0.5 min-w-[120px]">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg p-1.5 flex flex-col gap-1 min-w-[130px]">
           {STATUSES.map(s => (
             <button key={s.id}
-              className={cn('border-none bg-transparent text-left px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors hover:opacity-80', s.color, s.id === current.id && 'font-extrabold')}
+              className={cn('border-none bg-transparent text-left px-1 py-0.5 rounded-md cursor-pointer transition-colors hover:bg-muted', s.id === current.id && 'ring-1 ring-ring/30')}
               onClick={() => { onChange(s.id); setOpen(false); }}
-            >{s.label}</button>
+            >
+              <Badge variant={s.variant}>{s.label}</Badge>
+            </button>
           ))}
         </div>
       )}
@@ -612,6 +959,8 @@ function OrderRow({ order, onDelete, onEdit }) {
   const [editing, setEditing] = useState(false);
   const [customer, setCustomer] = useState(order.customer);
   const [location, setLocation] = useState(order.location || '');
+  const [lat, setLat] = useState(order.lat || null);
+  const [lng, setLng] = useState(order.lng || null);
   const [notes, setNotes] = useState(order.notes || '');
 
   const d = new Date(order.date);
@@ -620,16 +969,16 @@ function OrderRow({ order, onDelete, onEdit }) {
 
   const handleSave = async () => {
     if (!customer.trim()) return;
-    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim() });
+    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng });
     setEditing(false);
   };
-  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setNotes(order.notes || ''); setEditing(false); };
+  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setEditing(false); };
 
   if (editing) {
     return (
       <TableRow className="bg-primary/5">
         <TableCell><Input value={customer} onChange={e => setCustomer(e.target.value)} className="h-8 text-xs" /></TableCell>
-        <TableCell><Input placeholder="Ubicacion" value={location} onChange={e => setLocation(e.target.value)} className="h-8 text-xs" /></TableCell>
+        <TableCell><PlacesAutocomplete value={location} onChange={setLocation} onSelect={(addr, newLat, newLng) => { setLocation(addr); setLat(newLat); setLng(newLng); }} placeholder="Ubicacion" className="h-8 text-xs" /></TableCell>
         <TableCell colSpan={2}>
           <div className="flex gap-1 flex-wrap">
             {FLAVORS.map(f => order.quantities[f.id] > 0 ? <Badge key={f.id} variant={f.variant}>{f.emoji} {f.name} x{order.quantities[f.id]}</Badge> : null)}
@@ -679,6 +1028,8 @@ function OrderCard({ order, onDelete, onEdit }) {
   const [editing, setEditing] = useState(false);
   const [customer, setCustomer] = useState(order.customer);
   const [location, setLocation] = useState(order.location || '');
+  const [lat, setLat] = useState(order.lat || null);
+  const [lng, setLng] = useState(order.lng || null);
   const [notes, setNotes] = useState(order.notes || '');
 
   const d = new Date(order.date);
@@ -687,10 +1038,10 @@ function OrderCard({ order, onDelete, onEdit }) {
 
   const handleSave = async () => {
     if (!customer.trim()) return;
-    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim() });
+    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng });
     setEditing(false);
   };
-  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setNotes(order.notes || ''); setEditing(false); };
+  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setEditing(false); };
 
   if (editing) {
     return (
@@ -702,7 +1053,12 @@ function OrderCard({ order, onDelete, onEdit }) {
           </div>
           <div>
             <Label>Ubicacion</Label>
-            <Input placeholder="ej. Calle 5, Edificio Sol, Apto 3B" value={location} onChange={e => setLocation(e.target.value)} />
+            <PlacesAutocomplete
+              value={location}
+              onChange={setLocation}
+              onSelect={(addr, newLat, newLng) => { setLocation(addr); setLat(newLat); setLng(newLng); }}
+              placeholder="ej. Calle 5, Edificio Sol, Apto 3B"
+            />
           </div>
           <div>
             <Label>Notas</Label>

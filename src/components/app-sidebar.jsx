@@ -17,14 +17,18 @@ import {
   FileSpreadsheet,
   Package,
   ClipboardList,
+  Route,
+  Settings,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { key: 'dashboard',  label: 'Inicio',        icon: LayoutDashboard },
-  { key: 'neworder',   label: 'Nuevo Pedido',   icon: PlusCircle },
-  { key: 'bulk',       label: 'Carga Masiva',   icon: FileSpreadsheet },
-  { key: 'inventory',  label: 'Inventario',     icon: Package },
-  { key: 'orders',     label: 'Pedidos',        icon: ClipboardList },
+  { key: 'dashboard',  label: 'Inicio',         icon: LayoutDashboard },
+  { key: 'neworder',   label: 'Nuevo Pedido',    icon: PlusCircle },
+  { key: 'bulk',       label: 'Carga Masiva',    icon: FileSpreadsheet },
+  { key: 'inventory',  label: 'Inventario',      icon: Package },
+  { key: 'orders',     label: 'Pedidos',         icon: ClipboardList },
+  { key: 'routes',     label: 'Rutas',           icon: Route },
+  { key: 'settings',   label: 'Configuracion',   icon: Settings },
 ];
 
 export function AppSidebar({ page, onNavigate, totalStock, ...props }) {

@@ -52,6 +52,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.pac-container {
+  z-index: 9999 !important;
+}
+
 :root {
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
