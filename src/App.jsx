@@ -45,51 +45,59 @@ function Label({ children, className }) {
 
 // ─── Places Autocomplete ────────────────────────────────────────────────────
 function PlacesAutocomplete({ value, onChange, onSelect, placeholder, className }) {
-  const inputRef = useRef(null);
-  const autocompleteRef = useRef(null);
-  const [ready, setReady] = useState(!!window.google);
+  const containerRef = useRef(null);
+  const elementRef = useRef(null);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const [ready, setReady] = useState(!!window.google?.maps?.places?.PlaceAutocompleteElement);
 
   useEffect(() => {
-    if (window.google) { setReady(true); return; }
+    if (window.google?.maps?.places?.PlaceAutocompleteElement) { setReady(true); return; }
     const interval = setInterval(() => {
-      if (window.google) { setReady(true); clearInterval(interval); }
+      if (window.google?.maps?.places?.PlaceAutocompleteElement) { setReady(true); clearInterval(interval); }
     }, 200);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    if (!ready || !inputRef.current || autocompleteRef.current) return;
-    autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-      types: ['address'],
+    if (!ready || !containerRef.current || elementRef.current) return;
+
+    const el = new window.google.maps.places.PlaceAutocompleteElement({});
+    el.includedRegionCodes = ['cr'];
+    elementRef.current = el;
+
+    el.addEventListener('gmp-select', async ({ placePrediction }) => {
+      const place = placePrediction.toPlace();
+      await place.fetchFields({ fields: ['formattedAddress', 'location'] });
+      onSelectRef.current(
+        place.formattedAddress,
+        place.location.lat(),
+        place.location.lng()
+      );
     });
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current.getPlace();
-      if (place.geometry) {
-        onSelect(
-          place.formatted_address,
-          place.geometry.location.lat(),
-          place.geometry.location.lng()
-        );
-      }
-    });
+
+    containerRef.current.appendChild(el);
+
     return () => {
-      if (autocompleteRef.current) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      if (elementRef.current && elementRef.current.parentNode) {
+        elementRef.current.parentNode.removeChild(elementRef.current);
       }
+      elementRef.current = null;
     };
   }, [ready]);
 
   return (
-    <input
-      ref={inputRef}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={cn(
-        'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground md:text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-        className
+    <div className={cn('places-autocomplete-wrap', className)}>
+      {value && !ready && (
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none placeholder:text-muted-foreground md:text-sm"
+        />
       )}
-    />
+      <div ref={containerRef} />
+    </div>
   );
 }
 

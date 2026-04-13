@@ -56,6 +56,15 @@ body {
   z-index: 9999 !important;
 }
 
+.places-autocomplete-wrap gmp-place-autocomplete {
+  width: 100%;
+}
+
+.places-autocomplete-wrap gmp-place-autocomplete::part(input) {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+}
+
 :root {
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
