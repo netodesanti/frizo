@@ -10,6 +10,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { Separator } from '@/components/ui/separator';
+import { AppSidebar } from '@/components/app-sidebar';
 import { LayoutGrid, List, Minus, Plus, Upload } from 'lucide-react';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -44,7 +47,6 @@ export default function App() {
   const [page, setPage]           = useState('dashboard');
   const [stock, setStock]         = useState(DEFAULT_STOCK);
   const [orders, setOrders]       = useState([]);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
@@ -89,79 +91,37 @@ export default function App() {
     setPage('orders');
   }, [stock]);
 
-  const navigate = (p) => { setPage(p); setMobileOpen(false); };
-
-  const NAV = [
-    { key: 'dashboard',  label: 'Inicio',        icon: '📊' },
-    { key: 'neworder',   label: 'Nuevo Pedido',   icon: '➕' },
-    { key: 'bulk',       label: 'Carga Masiva',   icon: '📄' },
-    { key: 'inventory',  label: 'Inventario',     icon: '📦' },
-    { key: 'orders',     label: 'Pedidos',        icon: '📋' },
-  ];
+  const navigate = (p) => { setPage(p); };
 
   return (
-    <div className="flex min-h-screen">
-      {/* Mobile hamburger */}
-      <button
-        className="fixed top-3 left-3 z-[200] flex items-center justify-center w-10 h-10 rounded-lg bg-foreground text-white border-none text-lg cursor-pointer md:hidden"
-        onClick={() => setMobileOpen(o => !o)}
-      >
-        {mobileOpen ? '✕' : '☰'}
-      </button>
-
-      {/* Sidebar */}
-      <aside className={cn(
-        'fixed top-0 left-0 h-screen bg-foreground text-white flex flex-col z-[100] transition-all duration-300 overflow-hidden',
-        'w-16 md:w-60',
-        mobileOpen && 'w-60'
-      )}>
-        <div className="p-5 border-b border-white/10">
-          <div className="font-heading font-extrabold text-2xl text-primary whitespace-nowrap">Frizo</div>
-          <div className={cn('text-[0.7rem] text-white/40 mt-0.5 whitespace-nowrap transition-opacity', !mobileOpen && 'opacity-0 md:opacity-100')}>Bolsas de Smoothie</div>
-        </div>
-        <nav className="flex-1 p-3 flex flex-col gap-1">
-          {NAV.map(n => (
-            <button
-              key={n.key}
-              onClick={() => navigate(n.key)}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/55 hover:text-white hover:bg-white/5 transition-all border-none bg-transparent w-full text-left cursor-pointer whitespace-nowrap',
-                page === n.key && 'text-white bg-primary/15',
-              )}
-            >
-              <span className="text-lg w-6 text-center shrink-0">{n.icon}</span>
-              <span className={cn('transition-opacity', !mobileOpen && 'opacity-0 w-0 overflow-hidden md:opacity-100 md:w-auto')}>{n.label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-white/10 whitespace-nowrap">
-          <div className="flex items-center gap-2 text-xs text-white/50">
-            <span className="font-heading font-extrabold text-base text-primary">{totalStock}</span>
-            <span className={cn(!mobileOpen && 'opacity-0 md:opacity-100')}>bolsas en stock</span>
-          </div>
-        </div>
-      </aside>
-
-      {mobileOpen && <div className="fixed inset-0 bg-black/40 z-[99] md:hidden" onClick={() => setMobileOpen(false)} />}
-
-      {/* Main */}
-      <main className="ml-16 md:ml-60 flex-1 p-6 md:p-10 pt-16 md:pt-10 min-h-screen transition-all">
-        {loading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <div className="text-4xl mb-3">⏳</div>
-            <div>Cargando...</div>
-          </div>
-        ) : (
-          <div key={page} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {page === 'dashboard' && <Dashboard stock={stock} orders={orders} navigate={navigate} />}
-            {page === 'inventory' && <Inventory stock={stock} setStock={setStock} />}
-            {page === 'neworder'  && <NewOrder stock={stock} onPlace={placeOrder} />}
-            {page === 'bulk'      && <BulkUpload stock={stock} onPlace={bulkPlaceOrders} />}
-            {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
-          </div>
-        )}
-      </main>
-    </div>
+    <SidebarProvider>
+      <AppSidebar page={page} onNavigate={navigate} totalStock={totalStock} />
+      <SidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <span className="text-sm font-medium text-muted-foreground">
+            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos' })[page]}
+          </span>
+        </header>
+        <main className="flex-1 p-6 md:p-8">
+          {loading ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <div className="text-4xl mb-3">⏳</div>
+              <div>Cargando...</div>
+            </div>
+          ) : (
+            <div key={page}>
+              {page === 'dashboard' && <Dashboard stock={stock} orders={orders} navigate={navigate} />}
+              {page === 'inventory' && <Inventory stock={stock} setStock={setStock} />}
+              {page === 'neworder'  && <NewOrder stock={stock} onPlace={placeOrder} />}
+              {page === 'bulk'      && <BulkUpload stock={stock} onPlace={bulkPlaceOrders} />}
+              {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
+            </div>
+          )}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 
