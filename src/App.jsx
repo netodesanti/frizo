@@ -30,6 +30,7 @@ const FLAVOR_COLORS = {
 };
 
 const DEFAULT_STOCK = { verde: 0, antioxidante: 0, boost: 0 };
+const DEFAULT_PRICE = 1600;
 
 const STATUSES = [
   { id: 'pendiente',  label: 'Pendiente',  variant: 'pendiente',  color: 'text-status-pendiente' },
@@ -227,6 +228,7 @@ function FlavorCard({ flavor, value, max, children }) {
 function Dashboard({ stock, orders, navigate }) {
   const totalStock = stock.verde + stock.antioxidante + stock.boost;
   const totalBagsSold = orders.reduce((s, o) => s + o.totalBags, 0);
+  const totalRevenue = orders.reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
   const maxStock = Math.max(totalStock, 1);
   const recent = orders.slice(0, 5);
 
@@ -234,15 +236,16 @@ function Dashboard({ stock, orders, navigate }) {
     <>
       <PageHeader title="Inicio" subtitle="Resumen de tu negocio de smoothies" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Pedidos Totales', value: orders.length },
           { label: 'Bolsas Vendidas', value: totalBagsSold },
           { label: 'En Stock', value: totalStock, accent: true },
+          { label: 'Ventas Totales', value: `₡${totalRevenue.toLocaleString()}`, accent: true },
         ].map(s => (
           <Card key={s.label} className="text-center p-6">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{s.label}</div>
-            <div className={cn('font-heading font-extrabold text-4xl', s.accent && 'text-primary')}>{s.value}</div>
+            <div className={cn('font-heading font-extrabold text-3xl', s.accent && 'text-primary')}>{s.value}</div>
           </Card>
         ))}
       </div>
@@ -334,10 +337,12 @@ function NewOrder({ stock, onPlace }) {
   const [lat, setLat] = useState(null);
   const [lng, setLng] = useState(null);
   const [notes, setNotes]       = useState('');
+  const [pricePerBag, setPricePerBag] = useState(DEFAULT_PRICE);
   const [quantities, setQuantities] = useState({ verde: 0, antioxidante: 0, boost: 0 });
   const [errors, setErrors] = useState({});
 
   const totalBags = quantities.verde + quantities.antioxidante + quantities.boost;
+  const totalPrice = totalBags * pricePerBag;
   const stockWarnings = FLAVORS.filter(f => quantities[f.id] > stock[f.id]);
 
   const updateQty = (id, val) => {
@@ -356,7 +361,8 @@ function NewOrder({ stock, onPlace }) {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       customer: customer.trim(), location: location.trim(), notes: notes.trim(),
       lat, lng,
-      quantities: { ...quantities }, totalBags, status: 'pendiente',
+      quantities: { ...quantities }, totalBags, pricePerBag, totalPrice,
+      status: 'pendiente',
       date: new Date().toISOString(),
     });
   };
@@ -429,9 +435,19 @@ function NewOrder({ stock, onPlace }) {
               />
             </div>
 
+            <div>
+              <Label>Precio por bolsa (colones)</Label>
+              <Input type="number" min="0" value={pricePerBag}
+                onChange={e => setPricePerBag(parseInt(e.target.value, 10) || 0)}
+                className="w-40 font-heading font-extrabold" />
+            </div>
+
             <div className="flex items-center justify-between pt-4 border-t border-border">
-              <span className="font-semibold text-muted-foreground">Total de bolsas</span>
-              <span className="font-heading font-extrabold text-2xl text-primary">{totalBags}</span>
+              <div>
+                <div className="font-semibold text-muted-foreground">Total de bolsas</div>
+                <div className="text-xs text-muted-foreground">{totalBags} x ₡{pricePerBag.toLocaleString()}</div>
+              </div>
+              <span className="font-heading font-extrabold text-2xl text-primary">₡{totalPrice.toLocaleString()}</span>
             </div>
 
             <Button type="submit" className="w-full">Confirmar Pedido</Button>
@@ -499,7 +515,9 @@ function BulkUpload({ stock, onPlace }) {
     const orders = rows.map(r => ({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       customer: r.customer, location: r.location, notes: r.notes,
-      quantities: r.quantities, totalBags: r.totalBags, status: 'pendiente',
+      quantities: r.quantities, totalBags: r.totalBags,
+      pricePerBag: DEFAULT_PRICE, totalPrice: r.totalBags * DEFAULT_PRICE,
+      status: 'pendiente',
       date: new Date().toISOString(),
     }));
     await onPlace(orders);
@@ -913,6 +931,7 @@ function OrdersList({ orders, onDelete, onEdit }) {
               <TableHead>Ubicacion</TableHead>
               <TableHead>Sabores</TableHead>
               <TableHead>Bolsas</TableHead>
+              <TableHead>Precio</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Notas</TableHead>
               <TableHead>Fecha</TableHead>
@@ -1008,13 +1027,14 @@ function OrderRow({ order, onDelete, onEdit }) {
   return (
     <TableRow>
       <TableCell className="font-semibold whitespace-nowrap">{order.customer}</TableCell>
-      <TableCell className="text-muted-foreground">{order.location || '—'}</TableCell>
+      <TableCell className="text-muted-foreground max-w-[200px] truncate">{order.location || '—'}</TableCell>
       <TableCell>
         <div className="flex gap-1 flex-wrap">
           {FLAVORS.map(f => order.quantities[f.id] > 0 ? <Badge key={f.id} variant={f.variant}>{f.emoji} {f.name} x{order.quantities[f.id]}</Badge> : null)}
         </div>
       </TableCell>
       <TableCell className="font-heading font-extrabold text-primary text-center">{order.totalBags}</TableCell>
+      <TableCell className="text-sm whitespace-nowrap">₡{(order.totalPrice || order.totalBags * DEFAULT_PRICE).toLocaleString()}</TableCell>
       <TableCell>
         {onEdit ? <StatusSelect value={order.status} onChange={s => onEdit(order._id, { status: s })} />
           : <Badge variant={(STATUSES.find(s => s.id === order.status) || STATUSES[0]).variant}>{(STATUSES.find(s => s.id === order.status) || STATUSES[0]).label}</Badge>}
@@ -1104,7 +1124,10 @@ function OrderCard({ order, onDelete, onEdit }) {
       </CardContent>
       {(onEdit || onDelete) && (
         <div className="flex items-center justify-between px-5 py-2 border-t border-border">
-          <span className="font-heading font-extrabold text-xs text-primary">{order.totalBags} bolsa{order.totalBags !== 1 ? 's' : ''}</span>
+          <div>
+            <span className="font-heading font-extrabold text-xs text-primary">{order.totalBags} bolsa{order.totalBags !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-muted-foreground ml-2">₡{(order.totalPrice || order.totalBags * DEFAULT_PRICE).toLocaleString()}</span>
+          </div>
           <div className="flex gap-1">
             {onEdit && <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Editar</Button>}
             {onDelete && <Button variant="destructive" size="sm" onClick={() => onDelete(order._id)}>Eliminar</Button>}
