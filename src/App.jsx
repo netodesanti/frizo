@@ -608,6 +608,9 @@ function Settings({ orders }) {
   const [factoryAddress, setFactoryAddress] = useState('Iglesia Santa Catalina de Alejandría');
   const [factoryLat, setFactoryLat] = useState(null);
   const [factoryLng, setFactoryLng] = useState(null);
+  const [returnAddress, setReturnAddress] = useState('');
+  const [returnLat, setReturnLat] = useState(null);
+  const [returnLng, setReturnLng] = useState(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [initialVerde, setInitialVerde] = useState(50);
@@ -622,6 +625,9 @@ function Settings({ orders }) {
         if (data.factoryAddress) setFactoryAddress(data.factoryAddress);
         if (data.factoryLat) setFactoryLat(data.factoryLat);
         if (data.factoryLng) setFactoryLng(data.factoryLng);
+        if (data.returnAddress) setReturnAddress(data.returnAddress);
+        if (data.returnLat) setReturnLat(data.returnLat);
+        if (data.returnLng) setReturnLng(data.returnLng);
       }
       setLoading(false);
     });
@@ -629,7 +635,10 @@ function Settings({ orders }) {
   }, []);
 
   const save = async () => {
-    await setDoc(doc(db, 'config', 'settings'), { factoryAddress, factoryLat, factoryLng });
+    await setDoc(doc(db, 'config', 'settings'), {
+      factoryAddress, factoryLat, factoryLng,
+      returnAddress, returnLat, returnLng,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -670,6 +679,18 @@ function Settings({ orders }) {
             />
             {factoryLat && factoryLng && (
               <p className="text-xs text-muted-foreground mt-1">Coordenadas: {factoryLat.toFixed(6)}, {factoryLng.toFixed(6)}</p>
+            )}
+          </div>
+          <div>
+            <Label>Punto de Retorno (opcional, si se deja vacio se retorna a la fabrica)</Label>
+            <PlacesAutocomplete
+              value={returnAddress}
+              onChange={setReturnAddress}
+              onSelect={(addr, lat, lng) => { setReturnAddress(addr); setReturnLat(lat); setReturnLng(lng); }}
+              placeholder="ej. Casa"
+            />
+            {returnLat && returnLng && (
+              <p className="text-xs text-muted-foreground mt-1">Coordenadas: {returnLat.toFixed(6)}, {returnLng.toFixed(6)}</p>
             )}
           </div>
           <Button onClick={save}>Guardar Configuracion</Button>
@@ -772,12 +793,20 @@ function RoutePlanner({ orders }) {
 
     const directionsService = new window.google.maps.DirectionsService();
     const origin = { lat: settings.factoryLat, lng: settings.factoryLng };
+    const returnPoint = (settings.returnLat && settings.returnLng)
+      ? { lat: settings.returnLat, lng: settings.returnLng }
+      : origin;
 
     const request = selected.length === 1
-      ? { origin, destination: { lat: selected[0].lat, lng: selected[0].lng }, travelMode: 'DRIVING' }
+      ? {
+          origin,
+          destination: returnPoint,
+          waypoints: [{ location: { lat: selected[0].lat, lng: selected[0].lng }, stopover: true }],
+          travelMode: 'DRIVING',
+        }
       : {
           origin,
-          destination: origin,
+          destination: returnPoint,
           waypoints: selected.map(o => ({ location: { lat: o.lat, lng: o.lng }, stopover: true })),
           optimizeWaypoints: true,
           travelMode: 'DRIVING',
@@ -793,10 +822,7 @@ function RoutePlanner({ orders }) {
   const getOptimizedStops = () => {
     if (!directions) return [];
     const selected = orders.filter(o => selectedIds.has(o._id));
-    if (selected.length === 1) {
-      return [{ order: selected[0], leg: directions.routes[0].legs[0], stopNumber: 1 }];
-    }
-    const waypointOrder = directions.routes[0].waypoint_order;
+    const waypointOrder = directions.routes[0].waypoint_order || selected.map((_, i) => i);
     return waypointOrder.map((idx, i) => ({
       order: selected[idx],
       leg: directions.routes[0].legs[i],
@@ -902,15 +928,13 @@ function RoutePlanner({ orders }) {
                       </div>
                     </div>
                   ))}
-                  {orders.filter(o => selectedIds.has(o._id)).length > 1 && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-sm">
-                      <span className="font-heading font-extrabold text-primary w-6 text-center">F</span>
-                      <span className="font-semibold">Regreso a fabrica</span>
-                      <span className="text-xs text-muted-foreground ml-auto">
-                        {directions.routes[0].legs[directions.routes[0].legs.length - 1].distance.text} · {directions.routes[0].legs[directions.routes[0].legs.length - 1].duration.text}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-sm">
+                    <span className="font-heading font-extrabold text-primary w-6 text-center">{settings?.returnLat ? 'R' : 'F'}</span>
+                    <span className="font-semibold">{settings?.returnLat ? `Regreso a ${settings.returnAddress}` : 'Regreso a fabrica'}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {directions.routes[0].legs[directions.routes[0].legs.length - 1].distance.text} · {directions.routes[0].legs[directions.routes[0].legs.length - 1].duration.text}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex justify-between text-sm font-semibold border-t border-border pt-2">
                   <span>Total</span>
