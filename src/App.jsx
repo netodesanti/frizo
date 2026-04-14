@@ -194,7 +194,7 @@ export default function App() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium text-muted-foreground">
-            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion', costs: 'Costos' })[page]}
+            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion', costs: 'Gastos' })[page]}
           </span>
         </header>
         <main className="flex-1 p-6 md:p-8">
@@ -293,7 +293,7 @@ function Dashboard({ stock, orders, costs = [], navigate }) {
           <div className="font-heading font-extrabold text-3xl text-primary">₡{totalPaid.toLocaleString()}</div>
         </Card>
         <Card className="text-center p-6">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Costos</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Gastos</div>
           <div className="font-heading font-extrabold text-3xl text-destructive">₡{totalCosts.toLocaleString()}</div>
         </Card>
         <Card className="text-center p-6">
@@ -1046,7 +1046,7 @@ function Costs({ costs, onAdd, onDelete, onEdit }) {
 
   return (
     <>
-      <PageHeader title="Costos" subtitle="Registra los gastos del negocio para ver la ganancia neta" />
+      <PageHeader title="Gastos" subtitle="Registra los gastos del negocio para ver la ganancia neta" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <Card className="lg:col-span-1">
@@ -1075,7 +1075,7 @@ function Costs({ costs, onAdd, onDelete, onEdit }) {
                 <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
               </div>
               {error && <p className="text-destructive text-xs">{error}</p>}
-              <Button type="submit" className="w-full">Agregar Costo</Button>
+              <Button type="submit" className="w-full">Agregar Gasto</Button>
             </form>
           </CardContent>
         </Card>
@@ -1083,7 +1083,7 @@ function Costs({ costs, onAdd, onDelete, onEdit }) {
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Costos Totales</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Gastos Totales</div>
               <div className="font-heading font-extrabold text-4xl text-destructive">₡{total.toLocaleString()}</div>
               {byCategory.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-4">
@@ -1099,7 +1099,7 @@ function Costs({ costs, onAdd, onDelete, onEdit }) {
             <CardContent className="pt-6">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Historial ({costs.length})</div>
               {costs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">Aun no hay costos registrados.</p>
+                <p className="text-sm text-muted-foreground text-center py-6">Aun no hay gastos registrados.</p>
               ) : (
                 <Table>
                   <TableHeader>

@@ -48,7 +48,7 @@ const NAV_GROUPS = [
   {
     label: 'Finanzas',
     items: [
-      { key: 'costs', label: 'Costos', icon: Receipt },
+      { key: 'costs', label: 'Gastos', icon: Receipt },
     ],
   },
   {
