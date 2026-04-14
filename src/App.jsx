@@ -134,7 +134,18 @@ export default function App() {
     setPage('orders');
   }, [stock]);
 
-  const deleteOrder = useCallback(async (id) => { await deleteDoc(doc(db, 'orders', id)); }, []);
+  const deleteOrder = useCallback(async (id) => {
+    const order = orders.find(o => o._id === id);
+    if (order) {
+      const newStock = {
+        verde: stock.verde + order.quantities.verde,
+        antioxidante: stock.antioxidante + order.quantities.antioxidante,
+        boost: stock.boost + order.quantities.boost,
+      };
+      await setDoc(doc(db, 'config', 'stock'), newStock);
+    }
+    await deleteDoc(doc(db, 'orders', id));
+  }, [orders, stock]);
   const editOrder = useCallback(async (id, updates) => { await updateDoc(doc(db, 'orders', id), updates); }, []);
 
   const bulkPlaceOrders = useCallback(async (ordersList) => {
@@ -178,7 +189,7 @@ export default function App() {
               {page === 'bulk'      && <BulkUpload stock={stock} onPlace={bulkPlaceOrders} />}
               {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
               {page === 'routes'    && <RoutePlanner orders={orders} />}
-              {page === 'settings'  && <Settings />}
+              {page === 'settings'  && <Settings orders={orders} />}
             </div>
           )}
         </main>
@@ -228,7 +239,8 @@ function FlavorCard({ flavor, value, max, children }) {
 function Dashboard({ stock, orders, navigate }) {
   const totalStock = stock.verde + stock.antioxidante + stock.boost;
   const totalBagsSold = orders.reduce((s, o) => s + o.totalBags, 0);
-  const totalRevenue = orders.reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
+  const totalPaid = orders.filter(o => o.status === 'pagado').reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
+  const totalProjected = orders.reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
   const maxStock = Math.max(totalStock, 1);
   const recent = orders.slice(0, 5);
 
@@ -236,12 +248,13 @@ function Dashboard({ stock, orders, navigate }) {
     <>
       <PageHeader title="Inicio" subtitle="Resumen de tu negocio de smoothies" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {[
           { label: 'Pedidos Totales', value: orders.length },
           { label: 'Bolsas Vendidas', value: totalBagsSold },
           { label: 'En Stock', value: totalStock, accent: true },
-          { label: 'Ventas Totales', value: `₡${totalRevenue.toLocaleString()}`, accent: true },
+          { label: 'Cobrado', value: `₡${totalPaid.toLocaleString()}`, accent: true },
+          { label: 'Ventas Proyectadas', value: `₡${totalProjected.toLocaleString()}` },
         ].map(s => (
           <Card key={s.label} className="text-center p-6">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{s.label}</div>
@@ -285,7 +298,7 @@ function Inventory({ stock, setStock }) {
   const maxStock = Math.max(draft.verde + draft.antioxidante + draft.boost, 1);
 
   const update = (id, val) => {
-    const n = Math.max(0, typeof val === 'string' ? (parseInt(val, 10) || 0) : val);
+    const n = typeof val === 'string' ? (parseInt(val, 10) || 0) : val;
     setDraft(d => ({ ...d, [id]: n }));
   };
 
@@ -313,7 +326,7 @@ function Inventory({ stock, setStock }) {
                 <Minus className="h-4 w-4" />
               </Button>
               <Input
-                type="number" min="0" value={draft[f.id]}
+                type="number" value={draft[f.id]}
                 onChange={e => update(f.id, e.target.value)}
                 className="w-20 text-center font-heading font-extrabold text-lg"
               />
@@ -591,12 +604,16 @@ function BulkUpload({ stock, onPlace }) {
 }
 
 // ─── Settings ───────────────────────────────────────────────────────────────
-function Settings() {
+function Settings({ orders }) {
   const [factoryAddress, setFactoryAddress] = useState('Iglesia Santa Catalina de Alejandría');
   const [factoryLat, setFactoryLat] = useState(null);
   const [factoryLng, setFactoryLng] = useState(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [initialVerde, setInitialVerde] = useState(50);
+  const [initialAntioxidante, setInitialAntioxidante] = useState(50);
+  const [initialBoost, setInitialBoost] = useState(50);
+  const [recalcResult, setRecalcResult] = useState(null);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'settings'), (snap) => {
@@ -615,6 +632,20 @@ function Settings() {
     await setDoc(doc(db, 'config', 'settings'), { factoryAddress, factoryLat, factoryLng });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const recalculateStock = async () => {
+    const soldVerde        = orders.reduce((s, o) => s + (o.quantities?.verde || 0), 0);
+    const soldAntioxidante = orders.reduce((s, o) => s + (o.quantities?.antioxidante || 0), 0);
+    const soldBoost        = orders.reduce((s, o) => s + (o.quantities?.boost || 0), 0);
+    const newStock = {
+      verde: initialVerde - soldVerde,
+      antioxidante: initialAntioxidante - soldAntioxidante,
+      boost: initialBoost - soldBoost,
+    };
+    await setDoc(doc(db, 'config', 'stock'), newStock);
+    setRecalcResult({ soldVerde, soldAntioxidante, soldBoost, newStock });
+    setTimeout(() => setRecalcResult(null), 6000);
   };
 
   if (loading) return <div className="text-center py-12 text-muted-foreground">Cargando...</div>;
@@ -642,6 +673,42 @@ function Settings() {
             )}
           </div>
           <Button onClick={save}>Guardar Configuracion</Button>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl mt-6">
+        <CardContent className="pt-6 space-y-5">
+          <div>
+            <h3 className="font-heading font-extrabold text-base">Recalcular Inventario</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ingresa el stock inicial y calcularemos el stock actual restando todas las bolsas de los pedidos existentes.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>🥬 Verde</Label>
+              <Input type="number" value={initialVerde} onChange={e => setInitialVerde(parseInt(e.target.value, 10) || 0)} />
+            </div>
+            <div>
+              <Label>🫐 Antioxidante</Label>
+              <Input type="number" value={initialAntioxidante} onChange={e => setInitialAntioxidante(parseInt(e.target.value, 10) || 0)} />
+            </div>
+            <div>
+              <Label>🧡 Boost</Label>
+              <Input type="number" value={initialBoost} onChange={e => setInitialBoost(parseInt(e.target.value, 10) || 0)} />
+            </div>
+          </div>
+          <Button onClick={recalculateStock}>Recalcular y Guardar</Button>
+          {recalcResult && (
+            <div className="bg-primary/10 border border-primary/30 rounded-lg px-4 py-3 text-sm">
+              <p className="font-semibold mb-2">Inventario recalculado:</p>
+              <ul className="space-y-1 text-xs">
+                <li>🥬 Verde: {initialVerde} inicial − {recalcResult.soldVerde} vendidas = <strong className="text-primary">{recalcResult.newStock.verde}</strong></li>
+                <li>🫐 Antioxidante: {initialAntioxidante} inicial − {recalcResult.soldAntioxidante} vendidas = <strong className="text-primary">{recalcResult.newStock.antioxidante}</strong></li>
+                <li>🧡 Boost: {initialBoost} inicial − {recalcResult.soldBoost} vendidas = <strong className="text-primary">{recalcResult.newStock.boost}</strong></li>
+              </ul>
+            </div>
+          )}
         </CardContent>
       </Card>
     </>

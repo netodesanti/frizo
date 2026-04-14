@@ -20,15 +20,36 @@ import {
   Route,
   Settings,
 } from 'lucide-react';
+import logo from '@/assets/frizo-logo.svg';
 
-const NAV_ITEMS = [
-  { key: 'dashboard',  label: 'Inicio',         icon: LayoutDashboard },
-  { key: 'neworder',   label: 'Nuevo Pedido',    icon: PlusCircle },
-  { key: 'bulk',       label: 'Carga Masiva',    icon: FileSpreadsheet },
-  { key: 'inventory',  label: 'Inventario',      icon: Package },
-  { key: 'orders',     label: 'Pedidos',         icon: ClipboardList },
-  { key: 'routes',     label: 'Rutas',           icon: Route },
-  { key: 'settings',   label: 'Configuracion',   icon: Settings },
+const NAV_GROUPS = [
+  {
+    label: 'General',
+    items: [
+      { key: 'dashboard', label: 'Inicio', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Pedidos',
+    items: [
+      { key: 'neworder', label: 'Nuevo Pedido',   icon: PlusCircle },
+      { key: 'bulk',     label: 'Carga Masiva',   icon: FileSpreadsheet },
+      { key: 'orders',   label: 'Pedidos',        icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'Operaciones',
+    items: [
+      { key: 'inventory', label: 'Inventario', icon: Package },
+      { key: 'routes',    label: 'Rutas',      icon: Route },
+    ],
+  },
+  {
+    label: 'Ajustes',
+    items: [
+      { key: 'settings', label: 'Configuracion', icon: Settings },
+    ],
+  },
 ];
 
 export function AppSidebar({ page, onNavigate, totalStock, ...props }) {
@@ -37,13 +58,9 @@ export function AppSidebar({ page, onNavigate, totalStock, ...props }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="pointer-events-none">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-heading font-extrabold text-sm">
-                F
-              </div>
-              <div className="grid flex-1 text-left leading-tight">
-                <span className="font-heading font-extrabold text-base truncate">Frizo</span>
-                <span className="text-xs text-muted-foreground truncate">Bolsas de Smoothie</span>
+            <SidebarMenuButton size="lg" className="pointer-events-none h-auto py-3">
+              <div className="flex items-center justify-center w-full">
+                <img src={logo} alt="Frizo" className="h-8 w-auto object-contain group-data-[collapsible=icon]:h-6" />
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -51,23 +68,25 @@ export function AppSidebar({ page, onNavigate, totalStock, ...props }) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarMenu>
-            {NAV_ITEMS.map(item => (
-              <SidebarMenuItem key={item.key}>
-                <SidebarMenuButton
-                  isActive={page === item.key}
-                  onClick={() => onNavigate(item.key)}
-                  tooltip={item.label}
-                >
-                  <item.icon />
-                  <span>{item.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+        {NAV_GROUPS.map(group => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarMenu>
+              {group.items.map(item => (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    isActive={page === item.key}
+                    onClick={() => onNavigate(item.key)}
+                    tooltip={item.label}
+                  >
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
