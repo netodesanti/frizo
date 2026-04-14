@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Route,
   Settings,
+  Receipt,
 } from 'lucide-react';
 import logo from '@/assets/frizo-logo.svg';
 
@@ -42,6 +43,12 @@ const NAV_GROUPS = [
     items: [
       { key: 'inventory', label: 'Inventario', icon: Package },
       { key: 'routes',    label: 'Rutas',      icon: Route },
+    ],
+  },
+  {
+    label: 'Finanzas',
+    items: [
+      { key: 'costs', label: 'Costos', icon: Receipt },
     ],
   },
   {

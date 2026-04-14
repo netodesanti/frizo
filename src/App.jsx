@@ -107,6 +107,7 @@ export default function App() {
   const [page, setPage]           = useState('dashboard');
   const [stock, setStock]         = useState(DEFAULT_STOCK);
   const [orders, setOrders]       = useState([]);
+  const [costs, setCosts]         = useState([]);
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
@@ -118,7 +119,11 @@ export default function App() {
     const unsubOrders = onSnapshot(q, (snap) => {
       setOrders(snap.docs.map(d => ({ ...d.data(), _id: d.id })));
     });
-    return () => { unsubStock(); unsubOrders(); };
+    const qc = query(collection(db, 'costs'), orderBy('date', 'desc'));
+    const unsubCosts = onSnapshot(qc, (snap) => {
+      setCosts(snap.docs.map(d => ({ ...d.data(), _id: d.id })));
+    });
+    return () => { unsubStock(); unsubOrders(); unsubCosts(); };
   }, []);
 
   const totalStock = stock.verde + stock.antioxidante + stock.boost;
@@ -146,7 +151,24 @@ export default function App() {
     }
     await deleteDoc(doc(db, 'orders', id));
   }, [orders, stock]);
-  const editOrder = useCallback(async (id, updates) => { await updateDoc(doc(db, 'orders', id), updates); }, []);
+  const editOrder = useCallback(async (id, updates) => {
+    if (updates.quantities) {
+      const prev = orders.find(o => o._id === id);
+      if (prev) {
+        const newStock = {
+          verde: stock.verde + (prev.quantities.verde - updates.quantities.verde),
+          antioxidante: stock.antioxidante + (prev.quantities.antioxidante - updates.quantities.antioxidante),
+          boost: stock.boost + (prev.quantities.boost - updates.quantities.boost),
+        };
+        await setDoc(doc(db, 'config', 'stock'), newStock);
+      }
+    }
+    await updateDoc(doc(db, 'orders', id), updates);
+  }, [orders, stock]);
+
+  const addCost = useCallback(async (cost) => { await addDoc(collection(db, 'costs'), cost); }, []);
+  const deleteCost = useCallback(async (id) => { await deleteDoc(doc(db, 'costs', id)); }, []);
+  const editCost = useCallback(async (id, updates) => { await updateDoc(doc(db, 'costs', id), updates); }, []);
 
   const bulkPlaceOrders = useCallback(async (ordersList) => {
     let newStock = { ...stock };
@@ -172,7 +194,7 @@ export default function App() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium text-muted-foreground">
-            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion' })[page]}
+            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion', costs: 'Costos' })[page]}
           </span>
         </header>
         <main className="flex-1 p-6 md:p-8">
@@ -183,13 +205,14 @@ export default function App() {
             </div>
           ) : (
             <div key={page}>
-              {page === 'dashboard' && <Dashboard stock={stock} orders={orders} navigate={navigate} />}
+              {page === 'dashboard' && <Dashboard stock={stock} orders={orders} costs={costs} navigate={navigate} />}
               {page === 'inventory' && <Inventory stock={stock} setStock={setStock} />}
               {page === 'neworder'  && <NewOrder stock={stock} onPlace={placeOrder} />}
               {page === 'bulk'      && <BulkUpload stock={stock} onPlace={bulkPlaceOrders} />}
               {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
               {page === 'routes'    && <RoutePlanner orders={orders} />}
               {page === 'settings'  && <Settings orders={orders} />}
+              {page === 'costs'     && <Costs costs={costs} onAdd={addCost} onDelete={deleteCost} onEdit={editCost} />}
             </div>
           )}
         </main>
@@ -236,11 +259,13 @@ function FlavorCard({ flavor, value, max, children }) {
 }
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
-function Dashboard({ stock, orders, navigate }) {
+function Dashboard({ stock, orders, costs = [], navigate }) {
   const totalStock = stock.verde + stock.antioxidante + stock.boost;
   const totalBagsSold = orders.reduce((s, o) => s + o.totalBags, 0);
   const totalPaid = orders.filter(o => o.status === 'pagado').reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
   const totalProjected = orders.reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
+  const totalCosts = costs.reduce((s, c) => s + (c.amount || 0), 0);
+  const netProfit = totalPaid - totalCosts;
   const maxStock = Math.max(totalStock, 1);
   const recent = orders.slice(0, 5);
 
@@ -248,12 +273,11 @@ function Dashboard({ stock, orders, navigate }) {
     <>
       <PageHeader title="Inicio" subtitle="Resumen de tu negocio de smoothies" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         {[
           { label: 'Pedidos Totales', value: orders.length },
           { label: 'Bolsas Vendidas', value: totalBagsSold },
           { label: 'En Stock', value: totalStock, accent: true },
-          { label: 'Cobrado', value: `₡${totalPaid.toLocaleString()}`, accent: true },
           { label: 'Ventas Proyectadas', value: `₡${totalProjected.toLocaleString()}` },
         ].map(s => (
           <Card key={s.label} className="text-center p-6">
@@ -261,6 +285,21 @@ function Dashboard({ stock, orders, navigate }) {
             <div className={cn('font-heading font-extrabold text-3xl', s.accent && 'text-primary')}>{s.value}</div>
           </Card>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <Card className="text-center p-6">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Cobrado</div>
+          <div className="font-heading font-extrabold text-3xl text-primary">₡{totalPaid.toLocaleString()}</div>
+        </Card>
+        <Card className="text-center p-6">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Costos</div>
+          <div className="font-heading font-extrabold text-3xl text-destructive">₡{totalCosts.toLocaleString()}</div>
+        </Card>
+        <Card className="text-center p-6">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Ganancia Neta</div>
+          <div className={cn('font-heading font-extrabold text-3xl', netProfit >= 0 ? 'text-status-entregado' : 'text-destructive')}>₡{netProfit.toLocaleString()}</div>
+        </Card>
       </div>
 
       <h2 className="font-heading font-extrabold text-lg mb-4">Desglose de Inventario</h2>
@@ -965,6 +1004,183 @@ function RoutePlanner({ orders }) {
   );
 }
 
+// ─── Costs ──────────────────────────────────────────────────────────────────
+const COST_CATEGORIES = [
+  { id: 'ingredientes', label: 'Ingredientes' },
+  { id: 'empaque',      label: 'Empaque' },
+  { id: 'transporte',   label: 'Transporte' },
+  { id: 'marketing',    label: 'Marketing' },
+  { id: 'equipo',       label: 'Equipo' },
+  { id: 'otros',        label: 'Otros' },
+];
+
+function Costs({ costs, onAdd, onDelete, onEdit }) {
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('ingredientes');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [error, setError] = useState('');
+
+  const total = costs.reduce((s, c) => s + (c.amount || 0), 0);
+  const byCategory = COST_CATEGORIES.map(cat => ({
+    ...cat,
+    total: costs.filter(c => c.category === cat.id).reduce((s, c) => s + (c.amount || 0), 0),
+  })).filter(c => c.total > 0);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const amt = parseInt(amount, 10) || 0;
+    if (!description.trim()) { setError('Descripcion requerida'); return; }
+    if (amt <= 0) { setError('Monto debe ser mayor a 0'); return; }
+    setError('');
+    await onAdd({
+      description: description.trim(),
+      amount: amt,
+      category,
+      date: new Date(date).toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+    setDescription('');
+    setAmount('');
+  };
+
+  return (
+    <>
+      <PageHeader title="Costos" subtitle="Registra los gastos del negocio para ver la ganancia neta" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="lg:col-span-1">
+          <CardContent className="pt-6 space-y-4">
+            <form onSubmit={submit} className="space-y-4">
+              <div>
+                <Label>Descripcion *</Label>
+                <Input placeholder="ej. Compra de frutas" value={description} onChange={e => setDescription(e.target.value)} />
+              </div>
+              <div>
+                <Label>Categoria</Label>
+                <select
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  {COST_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Monto (colones) *</Label>
+                <Input type="number" min="0" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)} />
+              </div>
+              <div>
+                <Label>Fecha</Label>
+                <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+              </div>
+              {error && <p className="text-destructive text-xs">{error}</p>}
+              <Button type="submit" className="w-full">Agregar Costo</Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div className="lg:col-span-2 space-y-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Costos Totales</div>
+              <div className="font-heading font-extrabold text-4xl text-destructive">₡{total.toLocaleString()}</div>
+              {byCategory.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {byCategory.map(c => (
+                    <Badge key={c.id} variant="secondary">{c.label}: ₡{c.total.toLocaleString()}</Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Historial ({costs.length})</div>
+              {costs.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Aun no hay costos registrados.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Descripcion</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Monto</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {costs.map(c => <CostRow key={c._id} cost={c} onDelete={onDelete} onEdit={onEdit} />)}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CostRow({ cost, onDelete, onEdit }) {
+  const [editing, setEditing] = useState(false);
+  const [description, setDescription] = useState(cost.description);
+  const [amount, setAmount] = useState(cost.amount);
+  const [category, setCategory] = useState(cost.category || 'otros');
+
+  const d = new Date(cost.date);
+  const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const save = async () => {
+    const amt = parseInt(amount, 10) || 0;
+    if (!description.trim() || amt <= 0) return;
+    await onEdit(cost._id, { description: description.trim(), amount: amt, category });
+    setEditing(false);
+  };
+  const cancel = () => { setDescription(cost.description); setAmount(cost.amount); setCategory(cost.category || 'otros'); setEditing(false); };
+
+  if (editing) {
+    return (
+      <TableRow className="bg-primary/5">
+        <TableCell className="text-xs text-muted-foreground">{dateStr}</TableCell>
+        <TableCell><Input value={description} onChange={e => setDescription(e.target.value)} className="h-8 text-xs" /></TableCell>
+        <TableCell>
+          <select value={category} onChange={e => setCategory(e.target.value)}
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none">
+            {COST_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </TableCell>
+        <TableCell><Input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} className="h-8 text-xs w-24" /></TableCell>
+        <TableCell>
+          <div className="flex gap-1">
+            <Button size="sm" onClick={save}>Guardar</Button>
+            <Button variant="outline" size="sm" onClick={cancel}>Cancelar</Button>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  const catLabel = (COST_CATEGORIES.find(c => c.id === cost.category) || COST_CATEGORIES[5]).label;
+
+  return (
+    <TableRow>
+      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateStr}</TableCell>
+      <TableCell className="font-semibold">{cost.description}</TableCell>
+      <TableCell><Badge variant="secondary">{catLabel}</Badge></TableCell>
+      <TableCell className="font-heading font-extrabold text-destructive whitespace-nowrap">₡{cost.amount.toLocaleString()}</TableCell>
+      <TableCell>
+        <div className="flex gap-1">
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Editar</Button>
+          <Button variant="destructive" size="sm" onClick={() => onDelete(cost._id)}>Eliminar</Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 // ─── Orders List ────────────────────────────────────────────────────────────
 function OrdersList({ orders, onDelete, onEdit }) {
   const [view, setView] = useState('cards');
@@ -1081,29 +1297,48 @@ function OrderRow({ order, onDelete, onEdit }) {
   const [lng, setLng] = useState(order.lng || null);
   const [notes, setNotes] = useState(order.notes || '');
   const [pricePerBag, setPricePerBag] = useState(order.pricePerBag || DEFAULT_PRICE);
+  const [quantities, setQuantities] = useState({ ...order.quantities });
+  const editTotalBags = quantities.verde + quantities.antioxidante + quantities.boost;
 
   const d = new Date(order.date);
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short' })
     + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 
+  const updateQty = (id, val) => {
+    const n = Math.max(0, typeof val === 'string' ? (parseInt(val, 10) || 0) : val);
+    setQuantities(q => ({ ...q, [id]: n }));
+  };
+
   const handleSave = async () => {
     if (!customer.trim()) return;
-    const totalPrice = order.totalBags * pricePerBag;
-    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng, pricePerBag, totalPrice });
+    const totalPrice = editTotalBags * pricePerBag;
+    await onEdit(order._id, {
+      customer: customer.trim(), location: location.trim(), notes: notes.trim(),
+      lat, lng, pricePerBag,
+      quantities, totalBags: editTotalBags, totalPrice,
+    });
     setEditing(false);
   };
-  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setPricePerBag(order.pricePerBag || DEFAULT_PRICE); setEditing(false); };
+  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setPricePerBag(order.pricePerBag || DEFAULT_PRICE); setQuantities({ ...order.quantities }); setEditing(false); };
 
   if (editing) {
     return (
       <TableRow className="bg-primary/5">
         <TableCell><Input value={customer} onChange={e => setCustomer(e.target.value)} className="h-8 text-xs" /></TableCell>
         <TableCell><PlacesAutocomplete value={location} onChange={setLocation} onSelect={(addr, newLat, newLng) => { setLocation(addr); setLat(newLat); setLng(newLng); }} placeholder="Ubicacion" className="h-8 text-xs" /></TableCell>
-        <TableCell colSpan={2}>
-          <div className="flex gap-1 flex-wrap">
-            {FLAVORS.map(f => order.quantities[f.id] > 0 ? <Badge key={f.id} variant={f.variant}>{f.emoji} {f.name} x{order.quantities[f.id]}</Badge> : null)}
+        <TableCell>
+          <div className="flex flex-col gap-1">
+            {FLAVORS.map(f => (
+              <div key={f.id} className="flex items-center gap-1">
+                <span className="text-xs w-5">{f.emoji}</span>
+                <Input type="number" min="0" value={quantities[f.id]}
+                  onChange={e => updateQty(f.id, e.target.value)}
+                  className="h-7 w-14 text-center text-xs" />
+              </div>
+            ))}
           </div>
         </TableCell>
+        <TableCell className="font-heading font-extrabold text-primary text-center">{editTotalBags}</TableCell>
         <TableCell><Input type="number" min="0" value={pricePerBag} onChange={e => setPricePerBag(parseInt(e.target.value, 10) || 0)} className="h-8 text-xs w-24" /></TableCell>
         <TableCell><StatusSelect value={order.status} onChange={s => onEdit(order._id, { status: s })} /></TableCell>
         <TableCell><Input placeholder="Notas" value={notes} onChange={e => setNotes(e.target.value)} className="h-8 text-xs" /></TableCell>
@@ -1154,18 +1389,30 @@ function OrderCard({ order, onDelete, onEdit }) {
   const [lng, setLng] = useState(order.lng || null);
   const [notes, setNotes] = useState(order.notes || '');
   const [pricePerBag, setPricePerBag] = useState(order.pricePerBag || DEFAULT_PRICE);
+  const [quantities, setQuantities] = useState({ ...order.quantities });
 
   const d = new Date(order.date);
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
     + ' · ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 
+  const editTotalBags = quantities.verde + quantities.antioxidante + quantities.boost;
+
+  const updateQty = (id, val) => {
+    const n = Math.max(0, typeof val === 'string' ? (parseInt(val, 10) || 0) : val);
+    setQuantities(q => ({ ...q, [id]: n }));
+  };
+
   const handleSave = async () => {
     if (!customer.trim()) return;
-    const totalPrice = order.totalBags * pricePerBag;
-    await onEdit(order._id, { customer: customer.trim(), location: location.trim(), notes: notes.trim(), lat, lng, pricePerBag, totalPrice });
+    const totalPrice = editTotalBags * pricePerBag;
+    await onEdit(order._id, {
+      customer: customer.trim(), location: location.trim(), notes: notes.trim(),
+      lat, lng, pricePerBag,
+      quantities, totalBags: editTotalBags, totalPrice,
+    });
     setEditing(false);
   };
-  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setPricePerBag(order.pricePerBag || DEFAULT_PRICE); setEditing(false); };
+  const handleCancel = () => { setCustomer(order.customer); setLocation(order.location || ''); setLat(order.lat || null); setLng(order.lng || null); setNotes(order.notes || ''); setPricePerBag(order.pricePerBag || DEFAULT_PRICE); setQuantities({ ...order.quantities }); setEditing(false); };
 
   if (editing) {
     return (
@@ -1185,6 +1432,25 @@ function OrderCard({ order, onDelete, onEdit }) {
             />
           </div>
           <div>
+            <Label>Cantidades por sabor</Label>
+            <div className="grid grid-cols-1 gap-2">
+              {FLAVORS.map(f => (
+                <div key={f.id} className="flex items-center gap-2">
+                  <span className="text-sm flex-1">{f.emoji} {f.name}</span>
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(f.id, quantities[f.id] - 1)}>
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <Input type="number" min="0" value={quantities[f.id]}
+                    onChange={e => updateQty(f.id, e.target.value)}
+                    className="w-16 h-7 text-center font-heading font-extrabold text-sm" />
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(f.id, quantities[f.id] + 1)}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
             <Label>Notas</Label>
             <textarea className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm min-h-[60px] resize-y focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary"
               placeholder="ej. entregar el viernes" value={notes} onChange={e => setNotes(e.target.value)} />
@@ -1194,7 +1460,7 @@ function OrderCard({ order, onDelete, onEdit }) {
             <Input type="number" min="0" value={pricePerBag}
               onChange={e => setPricePerBag(parseInt(e.target.value, 10) || 0)}
               className="w-40 font-heading font-extrabold" />
-            <p className="text-xs text-muted-foreground mt-1">{order.totalBags} bolsas x ₡{pricePerBag.toLocaleString()} = ₡{(order.totalBags * pricePerBag).toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground mt-1">{editTotalBags} bolsas x ₡{pricePerBag.toLocaleString()} = ₡{(editTotalBags * pricePerBag).toLocaleString()}</p>
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSave}>Guardar</Button>
