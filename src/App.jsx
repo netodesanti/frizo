@@ -1029,7 +1029,7 @@ function Costs({ costs, onAdd, onDelete, onEdit }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    const amt = parseInt(amount, 10) || 0;
+    const amt = parseFloat(amount) || 0;
     if (!description.trim()) { setError('Descripcion requerida'); return; }
     if (amt <= 0) { setError('Monto debe ser mayor a 0'); return; }
     setError('');
@@ -1068,7 +1068,7 @@ function Costs({ costs, onAdd, onDelete, onEdit }) {
               </div>
               <div>
                 <Label>Monto (colones) *</Label>
-                <Input type="number" min="0" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)} />
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
               </div>
               <div>
                 <Label>Fecha</Label>
@@ -1134,7 +1134,7 @@ function CostRow({ cost, onDelete, onEdit }) {
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const save = async () => {
-    const amt = parseInt(amount, 10) || 0;
+    const amt = parseFloat(amount) || 0;
     if (!description.trim() || amt <= 0) return;
     await onEdit(cost._id, { description: description.trim(), amount: amt, category });
     setEditing(false);
@@ -1152,7 +1152,7 @@ function CostRow({ cost, onDelete, onEdit }) {
             {COST_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
         </TableCell>
-        <TableCell><Input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} className="h-8 text-xs w-24" /></TableCell>
+        <TableCell><Input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="h-8 text-xs w-24" /></TableCell>
         <TableCell>
           <div className="flex gap-1">
             <Button size="sm" onClick={save}>Guardar</Button>
