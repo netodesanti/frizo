@@ -20,7 +20,10 @@ import {
 	Route,
 	Settings,
 	Receipt,
+	LogOut,
 } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/firebase';
 import logo from '@/assets/frizo-logo.svg';
 
 const NAV_GROUPS = [
@@ -109,6 +112,12 @@ export function AppSidebar({ page, onNavigate, totalStock, ...props }) {
 							<SidebarMenuBadge className="font-heading font-extrabold text-primary">
 								{totalStock}
 							</SidebarMenuBadge>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
+					<SidebarMenuItem>
+						<SidebarMenuButton onClick={() => signOut(auth)} tooltip="Cerrar sesión">
+							<LogOut />
+							<span>Cerrar sesión</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
