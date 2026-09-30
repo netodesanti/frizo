@@ -21,6 +21,7 @@ import {
 	Settings,
 	Receipt,
 	LogOut,
+	ShoppingBag,
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/firebase';
@@ -42,6 +43,7 @@ const NAV_GROUPS = [
 	{
 		label: 'Operaciones',
 		items: [
+			{ key: 'products', label: 'Productos', icon: ShoppingBag },
 			{ key: 'inventory', label: 'Inventario', icon: Package },
 			{ key: 'routes', label: 'Rutas', icon: Route },
 		],

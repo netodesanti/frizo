@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { db } from './firebase';
 import {
   collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, updateDoc, query, orderBy, writeBatch
@@ -13,21 +13,36 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { AppSidebar } from '@/components/app-sidebar';
+import { ProductsPage } from '@/components/products-page';
 import { GoogleMap, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { LayoutGrid, List, Minus, Plus, Upload, MapPin, CheckSquare, Square } from 'lucide-react';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
-const FLAVORS = [
-  { id: 'verde',        name: 'Batido Verde',  emoji: '🥬', variant: 'verde' },
-  { id: 'antioxidante', name: 'Antioxidante',  emoji: '🫐', variant: 'antioxidante' },
-  { id: 'boost',        name: 'Boost Inmune',  emoji: '🧡', variant: 'boost' },
+// Fallback until the `products` collection loads (and for the fixed Excel columns).
+const BASE_FLAVORS = [
+  { id: 'verde',        name: 'Batido Verde',  emoji: '🥬', color: '#5cb85c' },
+  { id: 'antioxidante', name: 'Antioxidante',  emoji: '🫐', color: '#e84393' },
+  { id: 'boost',        name: 'Boost Inmune',  emoji: '🧡', color: '#f39c12' },
 ];
 
-const FLAVOR_COLORS = {
-  verde: 'bg-verde',
-  antioxidante: 'bg-antioxidante',
-  boost: 'bg-boost',
+const FlavorsContext = createContext(BASE_FLAVORS);
+const useFlavors = () => useContext(FlavorsContext);
+
+const sumQty = (q) => Object.values(q || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+// Returns a + sign * b for every key in either quantity map.
+const addQty = (a, b, sign = 1) => {
+  const out = { ...a };
+  for (const k of Object.keys(b || {})) out[k] = (out[k] || 0) + sign * (b[k] || 0);
+  return out;
 };
+
+function FlavorBadge({ flavor, children }) {
+  return (
+    <Badge variant="outline" className="border-transparent" style={{ backgroundColor: `${flavor.color}1f`, color: flavor.color }}>
+      {children}
+    </Badge>
+  );
+}
 
 const DEFAULT_STOCK = { verde: 0, antioxidante: 0, boost: 0 };
 const DEFAULT_PRICE = 1600;
@@ -109,6 +124,7 @@ export default function App() {
   const [orders, setOrders]       = useState([]);
   const [costs, setCosts]         = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [products, setProducts]   = useState(null);
 
   useEffect(() => {
     const unsubStock = onSnapshot(doc(db, 'config', 'stock'), (snap) => {
@@ -123,17 +139,17 @@ export default function App() {
     const unsubCosts = onSnapshot(qc, (snap) => {
       setCosts(snap.docs.map(d => ({ ...d.data(), _id: d.id })));
     });
-    return () => { unsubStock(); unsubOrders(); unsubCosts(); };
+    const qp = query(collection(db, 'products'), orderBy('order'));
+    const unsubProducts = onSnapshot(qp, (snap) => {
+      setProducts(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    });
+    return () => { unsubStock(); unsubOrders(); unsubCosts(); unsubProducts(); };
   }, []);
 
-  const totalStock = stock.verde + stock.antioxidante + stock.boost;
+  const totalStock = sumQty(stock);
 
   const placeOrder = useCallback(async (order) => {
-    const newStock = {
-      verde: stock.verde - order.quantities.verde,
-      antioxidante: stock.antioxidante - order.quantities.antioxidante,
-      boost: stock.boost - order.quantities.boost,
-    };
+    const newStock = addQty(stock, order.quantities, -1);
     await setDoc(doc(db, 'config', 'stock'), newStock);
     await addDoc(collection(db, 'orders'), order);
     setPage('orders');
@@ -142,11 +158,7 @@ export default function App() {
   const deleteOrder = useCallback(async (id) => {
     const order = orders.find(o => o._id === id);
     if (order) {
-      const newStock = {
-        verde: stock.verde + order.quantities.verde,
-        antioxidante: stock.antioxidante + order.quantities.antioxidante,
-        boost: stock.boost + order.quantities.boost,
-      };
+      const newStock = addQty(stock, order.quantities);
       await setDoc(doc(db, 'config', 'stock'), newStock);
     }
     await deleteDoc(doc(db, 'orders', id));
@@ -155,11 +167,7 @@ export default function App() {
     if (updates.quantities) {
       const prev = orders.find(o => o._id === id);
       if (prev) {
-        const newStock = {
-          verde: stock.verde + (prev.quantities.verde - updates.quantities.verde),
-          antioxidante: stock.antioxidante + (prev.quantities.antioxidante - updates.quantities.antioxidante),
-          boost: stock.boost + (prev.quantities.boost - updates.quantities.boost),
-        };
+        const newStock = addQty(addQty(stock, prev.quantities), updates.quantities, -1);
         await setDoc(doc(db, 'config', 'stock'), newStock);
       }
     }
@@ -174,9 +182,7 @@ export default function App() {
     let newStock = { ...stock };
     const batch = writeBatch(db);
     for (const order of ordersList) {
-      newStock.verde -= order.quantities.verde;
-      newStock.antioxidante -= order.quantities.antioxidante;
-      newStock.boost -= order.quantities.boost;
+      newStock = addQty(newStock, order.quantities, -1);
       batch.set(doc(collection(db, 'orders')), order);
     }
     batch.set(doc(db, 'config', 'stock'), newStock);
@@ -184,9 +190,23 @@ export default function App() {
     setPage('orders');
   }, [stock]);
 
+  // Seed the products collection with the original flavors the first time.
+  useEffect(() => {
+    if (!products || products.length) return;
+    const batch = writeBatch(db);
+    BASE_FLAVORS.forEach((f, i) => batch.set(doc(db, 'products', f.id), {
+      name: f.name, emoji: f.emoji, color: f.color, order: i, active: true,
+      price: DEFAULT_PRICE, description: '', ingredients: [], image: '', imagePath: '',
+    }));
+    batch.commit();
+  }, [products]);
+
+  const flavors = products?.length ? products : BASE_FLAVORS;
+
   const navigate = (p) => { setPage(p); };
 
   return (
+    <FlavorsContext.Provider value={flavors}>
     <SidebarProvider>
       <AppSidebar page={page} onNavigate={navigate} totalStock={totalStock} />
       <SidebarInset>
@@ -194,7 +214,7 @@ export default function App() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium text-muted-foreground">
-            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion', costs: 'Gastos' })[page]}
+            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion', costs: 'Gastos', products: 'Productos' })[page]}
           </span>
         </header>
         <main className="flex-1 p-6 md:p-8">
@@ -212,12 +232,14 @@ export default function App() {
               {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
               {page === 'routes'    && <RoutePlanner orders={orders} />}
               {page === 'settings'  && <Settings orders={orders} />}
+              {page === 'products'  && <ProductsPage products={products || []} />}
               {page === 'costs'     && <Costs costs={costs} onAdd={addCost} onDelete={deleteCost} onEdit={editCost} />}
             </div>
           )}
         </main>
       </SidebarInset>
     </SidebarProvider>
+    </FlavorsContext.Provider>
   );
 }
 
@@ -241,16 +263,16 @@ function FlavorCard({ flavor, value, max, children }) {
   const pct = max > 0 ? Math.max(0, (value / max) * 100) : 0;
   return (
     <Card className="relative overflow-hidden">
-      <div className={cn('absolute top-0 left-0 w-full h-1', FLAVOR_COLORS[flavor.id])} />
+      <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: flavor.color }} />
       <CardContent className="pt-6">
         <div className="text-3xl mb-2">{flavor.emoji}</div>
         <div className="font-heading font-extrabold text-sm mb-3">{flavor.name}</div>
-        <div className={cn('font-heading font-extrabold text-4xl leading-none mb-1', `text-${flavor.id}`)}>
+        <div className="font-heading font-extrabold text-4xl leading-none mb-1" style={{ color: flavor.color }}>
           {value}
         </div>
         <div className="text-[0.7rem] uppercase tracking-wide text-muted-foreground mb-3">bolsas</div>
         <div className="w-full h-2 bg-secondary rounded-full overflow-hidden mb-3">
-          <div className={cn('h-full rounded-full transition-all', FLAVOR_COLORS[flavor.id])} style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: flavor.color }} />
         </div>
         {children}
       </CardContent>
@@ -260,7 +282,8 @@ function FlavorCard({ flavor, value, max, children }) {
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 function Dashboard({ stock, orders, costs = [], navigate }) {
-  const totalStock = stock.verde + stock.antioxidante + stock.boost;
+  const FLAVORS = useFlavors();
+  const totalStock = sumQty(stock);
   const totalBagsSold = orders.reduce((s, o) => s + o.totalBags, 0);
   const totalPaid = orders.filter(o => o.status === 'pagado').reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
   const totalProjected = orders.reduce((s, o) => s + (o.totalPrice || o.totalBags * DEFAULT_PRICE), 0);
@@ -305,7 +328,7 @@ function Dashboard({ stock, orders, costs = [], navigate }) {
       <h2 className="font-heading font-extrabold text-lg mb-4">Desglose de Inventario</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
         {FLAVORS.map(f => (
-          <FlavorCard key={f.id} flavor={f} value={stock[f.id]} max={maxStock} />
+          <FlavorCard key={f.id} flavor={f} value={stock[f.id] || 0} max={maxStock} />
         ))}
       </div>
 
@@ -334,7 +357,8 @@ function Dashboard({ stock, orders, costs = [], navigate }) {
 function Inventory({ stock, setStock }) {
   const [draft, setDraft] = useState({ ...stock });
   const [saved, setSaved] = useState(false);
-  const maxStock = Math.max(draft.verde + draft.antioxidante + draft.boost, 1);
+  const FLAVORS = useFlavors();
+  const maxStock = Math.max(sumQty(draft), 1);
 
   const update = (id, val) => {
     const n = typeof val === 'string' ? (parseInt(val, 10) || 0) : val;
@@ -359,13 +383,13 @@ function Inventory({ stock, setStock }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
         {FLAVORS.map(f => (
-          <FlavorCard key={f.id} flavor={f} value={draft[f.id]} max={maxStock}>
+          <FlavorCard key={f.id} flavor={f} value={draft[f.id] || 0} max={maxStock}>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => update(f.id, draft[f.id] - 1)}>
                 <Minus className="h-4 w-4" />
               </Button>
               <Input
-                type="number" value={draft[f.id]}
+                type="number" value={draft[f.id] || 0}
                 onChange={e => update(f.id, e.target.value)}
                 className="w-20 text-center font-heading font-extrabold text-lg"
               />
@@ -390,12 +414,13 @@ function NewOrder({ stock, onPlace }) {
   const [lng, setLng] = useState(null);
   const [notes, setNotes]       = useState('');
   const [pricePerBag, setPricePerBag] = useState(DEFAULT_PRICE);
-  const [quantities, setQuantities] = useState({ verde: 0, antioxidante: 0, boost: 0 });
+  const FLAVORS = useFlavors();
+  const [quantities, setQuantities] = useState({});
   const [errors, setErrors] = useState({});
 
-  const totalBags = quantities.verde + quantities.antioxidante + quantities.boost;
+  const totalBags = sumQty(quantities);
   const totalPrice = totalBags * pricePerBag;
-  const stockWarnings = FLAVORS.filter(f => quantities[f.id] > stock[f.id]);
+  const stockWarnings = FLAVORS.filter(f => (quantities[f.id] || 0) > (stock[f.id] || 0));
 
   const updateQty = (id, val) => {
     const n = Math.max(0, typeof val === 'string' ? (parseInt(val, 10) || 0) : val);
@@ -457,19 +482,19 @@ function NewOrder({ stock, onPlace }) {
                       <span>{f.emoji}</span>
                       <span className="font-heading font-extrabold text-sm">{f.name}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground mb-3">{stock[f.id]} en stock</div>
+                    <div className="text-xs text-muted-foreground mb-3">{stock[f.id] || 0} en stock</div>
                     <div className="flex items-center gap-2">
-                      <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(f.id, quantities[f.id] - 1)}>
+                      <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(f.id, (quantities[f.id] || 0) - 1)}>
                         <Minus className="h-3 w-3" />
                       </Button>
-                      <Input type="number" min="0" value={quantities[f.id]}
+                      <Input type="number" min="0" value={quantities[f.id] || 0}
                         onChange={e => updateQty(f.id, e.target.value)}
                         className="w-16 text-center font-heading font-extrabold" />
-                      <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(f.id, quantities[f.id] + 1)}>
+                      <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(f.id, (quantities[f.id] || 0) + 1)}>
                         <Plus className="h-3 w-3" />
                       </Button>
                     </div>
-                    {quantities[f.id] > stock[f.id] && (
+                    {(quantities[f.id] || 0) > (stock[f.id] || 0) && (
                       <p className="text-destructive text-xs mt-2">Stock quedara en {stock[f.id] - quantities[f.id]}</p>
                     )}
                   </div>
@@ -611,7 +636,7 @@ function BulkUpload({ stock, onPlace }) {
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Ubicacion</TableHead>
-                    {FLAVORS.map(f => <TableHead key={f.id}>{f.emoji} {f.name}</TableHead>)}
+                    {BASE_FLAVORS.map(f => <TableHead key={f.id}>{f.emoji} {f.name}</TableHead>)}
                     <TableHead>Total</TableHead>
                     <TableHead>Notas</TableHead>
                     <TableHead />
@@ -622,7 +647,7 @@ function BulkUpload({ stock, onPlace }) {
                     <TableRow key={i}>
                       <TableCell className="font-semibold whitespace-nowrap">{r.customer}</TableCell>
                       <TableCell className="text-muted-foreground">{r.location || '—'}</TableCell>
-                      {FLAVORS.map(f => <TableCell key={f.id} className="font-heading font-extrabold text-center text-primary">{r.quantities[f.id]}</TableCell>)}
+                      {BASE_FLAVORS.map(f => <TableCell key={f.id} className="font-heading font-extrabold text-center text-primary">{r.quantities[f.id]}</TableCell>)}
                       <TableCell className="font-heading font-extrabold text-center text-primary">{r.totalBags}</TableCell>
                       <TableCell className="text-muted-foreground max-w-[180px] truncate">{r.notes || '—'}</TableCell>
                       <TableCell><Button variant="destructive" size="sm" onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}>Quitar</Button></TableCell>
@@ -1298,7 +1323,8 @@ function OrderRow({ order, onDelete, onEdit }) {
   const [notes, setNotes] = useState(order.notes || '');
   const [pricePerBag, setPricePerBag] = useState(order.pricePerBag || DEFAULT_PRICE);
   const [quantities, setQuantities] = useState({ ...order.quantities });
-  const editTotalBags = quantities.verde + quantities.antioxidante + quantities.boost;
+  const FLAVORS = useFlavors();
+  const editTotalBags = sumQty(quantities);
 
   const d = new Date(order.date);
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short' })
@@ -1331,7 +1357,7 @@ function OrderRow({ order, onDelete, onEdit }) {
             {FLAVORS.map(f => (
               <div key={f.id} className="flex items-center gap-1">
                 <span className="text-xs w-5">{f.emoji}</span>
-                <Input type="number" min="0" value={quantities[f.id]}
+                <Input type="number" min="0" value={quantities[f.id] || 0}
                   onChange={e => updateQty(f.id, e.target.value)}
                   className="h-7 w-14 text-center text-xs" />
               </div>
@@ -1359,7 +1385,7 @@ function OrderRow({ order, onDelete, onEdit }) {
       <TableCell className="text-muted-foreground max-w-[200px] truncate">{order.location || '—'}</TableCell>
       <TableCell>
         <div className="flex gap-1 flex-wrap">
-          {FLAVORS.map(f => order.quantities[f.id] > 0 ? <Badge key={f.id} variant={f.variant}>{f.emoji} {f.name} x{order.quantities[f.id]}</Badge> : null)}
+          {FLAVORS.map(f => order.quantities[f.id] > 0 ? <FlavorBadge key={f.id} flavor={f}>{f.emoji} {f.name} x{order.quantities[f.id]}</FlavorBadge> : null)}
         </div>
       </TableCell>
       <TableCell className="font-heading font-extrabold text-primary text-center">{order.totalBags}</TableCell>
@@ -1395,7 +1421,8 @@ function OrderCard({ order, onDelete, onEdit }) {
   const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
     + ' · ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 
-  const editTotalBags = quantities.verde + quantities.antioxidante + quantities.boost;
+  const FLAVORS = useFlavors();
+  const editTotalBags = sumQty(quantities);
 
   const updateQty = (id, val) => {
     const n = Math.max(0, typeof val === 'string' ? (parseInt(val, 10) || 0) : val);
@@ -1437,13 +1464,13 @@ function OrderCard({ order, onDelete, onEdit }) {
               {FLAVORS.map(f => (
                 <div key={f.id} className="flex items-center gap-2">
                   <span className="text-sm flex-1">{f.emoji} {f.name}</span>
-                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(f.id, quantities[f.id] - 1)}>
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(f.id, (quantities[f.id] || 0) - 1)}>
                     <Minus className="h-3 w-3" />
                   </Button>
-                  <Input type="number" min="0" value={quantities[f.id]}
+                  <Input type="number" min="0" value={quantities[f.id] || 0}
                     onChange={e => updateQty(f.id, e.target.value)}
                     className="w-16 h-7 text-center font-heading font-extrabold text-sm" />
-                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(f.id, quantities[f.id] + 1)}>
+                  <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(f.id, (quantities[f.id] || 0) + 1)}>
                     <Plus className="h-3 w-3" />
                   </Button>
                 </div>
@@ -1487,7 +1514,7 @@ function OrderCard({ order, onDelete, onEdit }) {
           </div>
         </div>
         <div className="flex gap-1 flex-wrap">
-          {FLAVORS.map(f => order.quantities[f.id] > 0 ? <Badge key={f.id} variant={f.variant}>{f.emoji} {f.name} x{order.quantities[f.id]}</Badge> : null)}
+          {FLAVORS.map(f => order.quantities[f.id] > 0 ? <FlavorBadge key={f.id} flavor={f}>{f.emoji} {f.name} x{order.quantities[f.id]}</FlavorBadge> : null)}
         </div>
         {order.notes && <p className="text-xs text-muted-foreground italic truncate">"{order.notes}"</p>}
       </CardContent>
