@@ -4,6 +4,7 @@ import { sumQty } from '@/lib/data';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { TabBar } from '@/components/tab-bar';
+import { PullToRefresh } from '@/components/pull-to-refresh';
 import { DashboardPage } from '@/pages/dashboard';
 import { OrdersPage, NewOrderPage } from '@/pages/orders';
 import { BulkUploadPage } from '@/pages/bulk-upload';
@@ -55,6 +56,7 @@ function Shell() {
         <Screens route={route} />
       </div>
       <TabBar tab={tab} />
+      <PullToRefresh />
     </SidebarProvider>
   );
 }

@@ -66,15 +66,17 @@ export function RoutesPage() {
       )}
 
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,400px)_1fr] lg:gap-6">
-        <Card className="overflow-hidden p-1.5 lg:sticky lg:top-20 lg:order-2">
-          <div className="overflow-hidden rounded-[22px]">
-            <GoogleMap mapContainerClassName="h-[42svh] w-full lg:h-[calc(100svh-8rem)]" zoom={12}
-              center={origin || { lat: 9.9281, lng: -84.0907 }} options={{ disableDefaultUI: true, zoomControl: true }}>
-              {directions && <DirectionsRenderer directions={directions} />}
-              {!directions && origin && <Marker position={origin} label="F" />}
-            </GoogleMap>
-          </div>
-        </Card>
+        <div data-no-pull className="lg:sticky lg:top-20 lg:order-2">
+          <Card className="overflow-hidden p-1.5">
+            <div className="overflow-hidden rounded-[22px]">
+              <GoogleMap mapContainerClassName="h-[42svh] w-full lg:h-[calc(100svh-8rem)]" zoom={12}
+                center={origin || { lat: 9.9281, lng: -84.0907 }} options={{ disableDefaultUI: true, zoomControl: true }}>
+                {directions && <DirectionsRenderer directions={directions} />}
+                {!directions && origin && <Marker position={origin} label="F" />}
+              </GoogleMap>
+            </div>
+          </Card>
+        </div>
 
         <div className="space-y-7 lg:order-1">
           {route && (
