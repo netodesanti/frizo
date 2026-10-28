@@ -10,6 +10,7 @@ import {
 	SidebarRail,
 	SidebarGroup,
 	SidebarGroupLabel,
+	useSidebar,
 } from '@/components/ui/sidebar';
 import {
 	LayoutDashboard,
@@ -59,6 +60,9 @@ const NAV_GROUPS = [
 ];
 
 export function AppSidebar({ page, onNavigate, totalStock, ...props }) {
+	const { setOpenMobile } = useSidebar();
+	const go = (key) => { setOpenMobile(false); onNavigate(key); };
+
 	return (
 		<Sidebar
 			className="border-r-0"
@@ -92,7 +96,7 @@ export function AppSidebar({ page, onNavigate, totalStock, ...props }) {
 								<SidebarMenuItem key={item.key}>
 									<SidebarMenuButton
 										isActive={page === item.key}
-										onClick={() => onNavigate(item.key)}
+										onClick={() => go(item.key)}
 										tooltip={item.label}
 									>
 										<item.icon />

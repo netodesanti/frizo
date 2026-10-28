@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import {
   collection, doc, onSnapshot, setDoc, addDoc, deleteDoc, updateDoc, query, orderBy, writeBatch
 } from 'firebase/firestore';
@@ -11,11 +11,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { AppSidebar } from '@/components/app-sidebar';
 import { ProductsPage } from '@/components/products-page';
+import { BottomNav } from '@/components/bottom-nav';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { GoogleMap, Marker, DirectionsRenderer } from '@react-google-maps/api';
-import { LayoutGrid, List, Minus, Plus, Upload, MapPin, CheckSquare, Square } from 'lucide-react';
+import { LayoutGrid, List, Minus, Plus, Upload, MapPin, CheckSquare, Square, ArrowRight, ArrowLeftRight, Trash2 } from 'lucide-react';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 // Fallback until the `products` collection loads (and for the fixed Excel columns).
@@ -118,13 +121,33 @@ function PlacesAutocomplete({ value, onChange, onSelect, placeholder, className 
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
+const PAGE_TITLES = {
+  dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos',
+  routes: 'Rutas', settings: 'Configuracion', costs: 'Gastos', products: 'Productos',
+};
+
+// The page lives in the URL hash so the phone's back button moves between pages.
+const pageFromHash = () => {
+  const p = window.location.hash.slice(1);
+  return PAGE_TITLES[p] ? p : 'dashboard';
+};
+const navigate = (p) => { window.location.hash = p; };
+
 export default function App() {
-  const [page, setPage]           = useState('dashboard');
+  const [page, setPage]           = useState(pageFromHash);
   const [stock, setStock]         = useState(DEFAULT_STOCK);
   const [orders, setOrders]       = useState([]);
   const [costs, setCosts]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [products, setProducts]   = useState(null);
+  const [partners, setPartners]   = useState([]);
+  const [transfers, setTransfers] = useState([]);
+
+  useEffect(() => {
+    const onHash = () => { setPage(pageFromHash()); window.scrollTo(0, 0); };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   useEffect(() => {
     const unsubStock = onSnapshot(doc(db, 'config', 'stock'), (snap) => {
@@ -143,7 +166,14 @@ export default function App() {
     const unsubProducts = onSnapshot(qp, (snap) => {
       setProducts(snap.docs.map(d => ({ ...d.data(), id: d.id })));
     });
-    return () => { unsubStock(); unsubOrders(); unsubCosts(); unsubProducts(); };
+    const unsubPartners = onSnapshot(doc(db, 'config', 'partners'), (snap) => {
+      setPartners(snap.exists() ? snap.data().list || [] : []);
+    });
+    const qt = query(collection(db, 'transfers'), orderBy('date', 'desc'));
+    const unsubTransfers = onSnapshot(qt, (snap) => {
+      setTransfers(snap.docs.map(d => ({ ...d.data(), _id: d.id })));
+    });
+    return () => { unsubStock(); unsubOrders(); unsubCosts(); unsubProducts(); unsubPartners(); unsubTransfers(); };
   }, []);
 
   const totalStock = sumQty(stock);
@@ -152,11 +182,12 @@ export default function App() {
     const newStock = addQty(stock, order.quantities, -1);
     await setDoc(doc(db, 'config', 'stock'), newStock);
     await addDoc(collection(db, 'orders'), order);
-    setPage('orders');
+    navigate('orders');
   }, [stock]);
 
   const deleteOrder = useCallback(async (id) => {
     const order = orders.find(o => o._id === id);
+    if (!window.confirm(`¿Eliminar el pedido de ${order?.customer || 'este cliente'}?`)) return;
     if (order) {
       const newStock = addQty(stock, order.quantities);
       await setDoc(doc(db, 'config', 'stock'), newStock);
@@ -177,6 +208,9 @@ export default function App() {
   const addCost = useCallback(async (cost) => { await addDoc(collection(db, 'costs'), cost); }, []);
   const deleteCost = useCallback(async (id) => { await deleteDoc(doc(db, 'costs', id)); }, []);
   const editCost = useCallback(async (id, updates) => { await updateDoc(doc(db, 'costs', id), updates); }, []);
+  const addTransfer = useCallback(async (t) => { await addDoc(collection(db, 'transfers'), t); }, []);
+  const deleteTransfer = useCallback(async (id) => { await deleteDoc(doc(db, 'transfers', id)); }, []);
+  const editTransfer = useCallback(async (id, updates) => { await updateDoc(doc(db, 'transfers', id), updates); }, []);
 
   const bulkPlaceOrders = useCallback(async (ordersList) => {
     let newStock = { ...stock };
@@ -187,7 +221,7 @@ export default function App() {
     }
     batch.set(doc(db, 'config', 'stock'), newStock);
     await batch.commit();
-    setPage('orders');
+    navigate('orders');
   }, [stock]);
 
   // Seed the products collection with the original flavors the first time.
@@ -203,21 +237,17 @@ export default function App() {
 
   const flavors = products?.length ? products : BASE_FLAVORS;
 
-  const navigate = (p) => { setPage(p); };
-
   return (
     <FlavorsContext.Provider value={flavors}>
     <SidebarProvider>
       <AppSidebar page={page} onNavigate={navigate} totalStock={totalStock} />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+        <header className="hidden md:flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="text-sm font-medium text-muted-foreground">
-            {({ dashboard: 'Inicio', neworder: 'Nuevo Pedido', bulk: 'Carga Masiva', inventory: 'Inventario', orders: 'Pedidos', routes: 'Rutas', settings: 'Configuracion', costs: 'Gastos', products: 'Productos' })[page]}
-          </span>
+          <span className="text-sm font-medium text-muted-foreground">{PAGE_TITLES[page]}</span>
         </header>
-        <main className="flex-1 p-6 md:p-8">
+        <main className="flex-1 px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-8">
           {loading ? (
             <div className="text-center py-12 text-muted-foreground">
               <div className="text-4xl mb-3">⏳</div>
@@ -231,13 +261,18 @@ export default function App() {
               {page === 'bulk'      && <BulkUpload stock={stock} onPlace={bulkPlaceOrders} />}
               {page === 'orders'    && <OrdersList orders={orders} onDelete={deleteOrder} onEdit={editOrder} />}
               {page === 'routes'    && <RoutePlanner orders={orders} />}
-              {page === 'settings'  && <Settings orders={orders} />}
+              {page === 'settings'  && <Settings orders={orders} partners={partners} />}
               {page === 'products'  && <ProductsPage products={products || []} />}
-              {page === 'costs'     && <Costs costs={costs} onAdd={addCost} onDelete={deleteCost} onEdit={editCost} />}
+              {page === 'costs'     && (
+                <Costs costs={costs} transfers={transfers} partners={partners} navigate={navigate}
+                  onAdd={addCost} onDelete={deleteCost} onEdit={editCost}
+                  onAddTransfer={addTransfer} onDeleteTransfer={deleteTransfer} onEditTransfer={editTransfer} />
+              )}
             </div>
           )}
         </main>
       </SidebarInset>
+      <BottomNav page={page} onNavigate={navigate} />
     </SidebarProvider>
     </FlavorsContext.Provider>
   );
@@ -246,10 +281,10 @@ export default function App() {
 // ─── Page Header ────────────────────────────────────────────────────────────
 function PageHeader({ title, subtitle, children }) {
   return (
-    <div className="mb-8">
+    <div className="mb-6 md:mb-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-heading font-extrabold text-3xl text-foreground">{title}</h1>
+          <h1 className="font-heading font-extrabold text-2xl md:text-3xl text-foreground">{title}</h1>
           {subtitle && <p className="text-muted-foreground text-sm mt-1">{subtitle}</p>}
         </div>
         {children}
@@ -296,16 +331,16 @@ function Dashboard({ stock, orders, costs = [], navigate }) {
     <>
       <PageHeader title="Inicio" subtitle="Resumen de tu negocio de smoothies" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
         {[
           { label: 'Pedidos Totales', value: orders.length },
           { label: 'Bolsas Vendidas', value: totalBagsSold },
           { label: 'En Stock', value: totalStock, accent: true },
           { label: 'Ventas Proyectadas', value: `₡${totalProjected.toLocaleString()}` },
         ].map(s => (
-          <Card key={s.label} className="text-center p-6">
+          <Card key={s.label} className="text-center p-4 md:p-6">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{s.label}</div>
-            <div className={cn('font-heading font-extrabold text-3xl', s.accent && 'text-primary')}>{s.value}</div>
+            <div className={cn('font-heading font-extrabold text-2xl md:text-3xl', s.accent && 'text-primary')}>{s.value}</div>
           </Card>
         ))}
       </div>
@@ -668,7 +703,7 @@ function BulkUpload({ stock, onPlace }) {
 }
 
 // ─── Settings ───────────────────────────────────────────────────────────────
-function Settings({ orders }) {
+function Settings({ orders, partners }) {
   const [factoryAddress, setFactoryAddress] = useState('Iglesia Santa Catalina de Alejandría');
   const [factoryLat, setFactoryLat] = useState(null);
   const [factoryLng, setFactoryLng] = useState(null);
@@ -726,6 +761,7 @@ function Settings({ orders }) {
   return (
     <>
       <PageHeader title="Configuracion" subtitle="Configura la direccion de la fabrica y otros ajustes" />
+      <PartnersSettings partners={partners} />
       {saved && (
         <div className="bg-primary/10 border border-primary/30 text-status-pagado rounded-lg px-4 py-3 text-sm font-medium mb-4">
           Configuracion guardada exitosamente!
@@ -797,6 +833,66 @@ function Settings({ orders }) {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+const newPartner = (email = '') => ({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: '', email });
+
+function PartnersSettings({ partners }) {
+  const [list, setList] = useState([]);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setList(partners.length ? partners : [newPartner(auth.currentUser?.email || ''), newPartner()]);
+  }, [partners]);
+
+  const update = (id, field, value) => setList(l => l.map(p => p.id === id ? { ...p, [field]: value } : p));
+  const remove = (p) => {
+    if (partners.some(x => x.id === p.id) &&
+      !window.confirm(`¿Quitar a ${p.name}? Sus gastos y transferencias dejarán de contar en los saldos.`)) return;
+    setList(l => l.filter(x => x.id !== p.id));
+  };
+
+  const save = async () => {
+    const cleaned = list.map(p => ({ ...p, name: p.name.trim(), email: p.email.trim() }));
+    if (cleaned.some(p => !p.name)) { setError('Cada socio necesita un nombre'); return; }
+    setError('');
+    await setDoc(doc(db, 'config', 'partners'), { list: cleaned });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <Card className="max-w-2xl mb-6">
+      <CardContent className="pt-6 space-y-4">
+        <div>
+          <h3 className="font-heading font-extrabold text-base">Socios</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Las personas que pagan gastos del negocio. Si el correo coincide con el de su usuario, los gastos que registre quedan a su nombre por defecto.
+          </p>
+        </div>
+        {list.map(p => (
+          <div key={p.id} className="flex items-start gap-2">
+            <div className="grid flex-1 grid-cols-1 sm:grid-cols-2 gap-2">
+              <Input className="h-10" placeholder="Nombre" value={p.name} onChange={e => update(p.id, 'name', e.target.value)} />
+              <Input className="h-10" type="email" placeholder="Correo (opcional)" value={p.email} onChange={e => update(p.id, 'email', e.target.value)} />
+            </div>
+            {list.length > 1 && (
+              <Button variant="ghost" size="icon" className="size-10" onClick={() => remove(p)} aria-label={`Quitar ${p.name || 'socio'}`}>
+                <Trash2 />
+              </Button>
+            )}
+          </div>
+        ))}
+        {error && <p className="text-destructive text-xs">{error}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={save}>Guardar Socios</Button>
+          <Button variant="outline" onClick={() => setList(l => [...l, newPartner()])}><Plus /> Agregar socio</Button>
+          {saved && <span className="text-sm text-status-pagado">Guardado</span>}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1013,7 +1109,7 @@ function RoutePlanner({ orders }) {
         <div className="lg:col-span-2">
           <Card className="overflow-hidden">
             <GoogleMap
-              mapContainerStyle={{ width: '100%', height: '600px' }}
+              mapContainerClassName="w-full h-[60svh] lg:h-[600px]"
               center={mapCenter}
               zoom={12}
             >
@@ -1039,182 +1135,427 @@ const COST_CATEGORIES = [
   { id: 'otros',        label: 'Otros' },
 ];
 
-function Costs({ costs, onAdd, onDelete, onEdit }) {
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('ingredientes');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [error, setError] = useState('');
+const COMPANY = { id: 'empresa', name: 'Empresa' };
+
+const money = (n) => `₡${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+// Local calendar day; toISOString() alone already says "tomorrow" after 6pm in Costa Rica.
+const todayISO = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+// Expense dates are saved as UTC midnight of the chosen day, so read them back in UTC.
+const formatDay = (iso) => new Date(iso).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+// Positive: the company owes that partner. Negative: the partner holds company money.
+// An expense paid by a partner counts as money they put in; a transfer moves it
+// from one side to the other (the company itself is not tracked).
+function partnerBalances(partners, costs, transfers) {
+  const bal = Object.fromEntries(partners.map(p => [p.id, 0]));
+  for (const c of costs) if (c.paidBy in bal) bal[c.paidBy] += c.amount || 0;
+  for (const t of transfers) {
+    if (t.from in bal) bal[t.from] += t.amount || 0;
+    if (t.to in bal) bal[t.to] -= t.amount || 0;
+  }
+  return bal;
+}
+
+// Payments between partners that leave everyone having put in the same amount.
+function settleUp(partners, balances) {
+  const avg = partners.reduce((s, p) => s + balances[p.id], 0) / partners.length;
+  const diffs = partners.map(p => ({ p, d: balances[p.id] - avg }));
+  const owed = diffs.filter(x => x.d > 0.005).sort((a, b) => b.d - a.d);
+  const owing = diffs.filter(x => x.d < -0.005).sort((a, b) => a.d - b.d);
+  const out = [];
+  for (let i = 0, j = 0; i < owing.length && j < owed.length;) {
+    const amount = Math.min(-owing[i].d, owed[j].d);
+    out.push({ from: owing[i].p, to: owed[j].p, amount });
+    owing[i].d += amount; owed[j].d -= amount;
+    if (owing[i].d > -0.005) i++;
+    if (owed[j].d < 0.005) j++;
+  }
+  return out;
+}
+
+const myPartnerId = (partners) => {
+  const email = auth.currentUser?.email?.toLowerCase();
+  return partners.find(p => email && p.email?.toLowerCase() === email)?.id;
+};
+
+function ChoiceButtons({ options, value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(o => (
+        <button type="button" key={o.id} onClick={() => onChange(o.id)}
+          className={cn('h-10 px-4 rounded-lg border text-sm font-medium transition-colors',
+            value === o.id ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-transparent hover:bg-muted')}>
+          {o.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Costs({ costs, transfers, partners, navigate, onAdd, onDelete, onEdit, onAddTransfer, onDeleteTransfer, onEditTransfer }) {
+  const isMobile = useIsMobile();
+  const [tab, setTab] = useState('costs');
+  const [payerFilter, setPayerFilter] = useState('all');
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheet, setSheet] = useState(null); // { kind: 'cost' | 'transfer', item? }
+
+  const payers = [COMPANY, ...partners];
+  const nameOf = (id) => payers.find(p => p.id === id)?.name || (id ? 'Socio eliminado' : 'Sin asignar');
+  const balances = partnerBalances(partners, costs, transfers);
 
   const total = costs.reduce((s, c) => s + (c.amount || 0), 0);
   const byCategory = COST_CATEGORIES.map(cat => ({
     ...cat,
     total: costs.filter(c => c.category === cat.id).reduce((s, c) => s + (c.amount || 0), 0),
   })).filter(c => c.total > 0);
+  const unassigned = costs.filter(c => !c.paidBy);
+  const byPayer = [...payers, { id: 'none', name: 'Sin asignar' }].map(p => ({
+    ...p,
+    total: costs.filter(c => (c.paidBy || 'none') === p.id).reduce((s, c) => s + (c.amount || 0), 0),
+  })).filter(p => p.total > 0);
+
+  const filterOptions = [{ id: 'all', name: 'Todos' }, ...payers, ...(unassigned.length ? [{ id: 'none', name: 'Sin asignar' }] : [])];
+  const shownCosts = payerFilter === 'all' ? costs : costs.filter(c => (c.paidBy || 'none') === payerFilter);
+
+  const open = (kind, item) => { setSheet({ kind, item }); setSheetOpen(true); };
+  const close = () => setSheetOpen(false);
+
+  return (
+    <>
+      <PageHeader title="Gastos" subtitle="Quién pagó qué y cuánto se le debe a cada socio" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className="space-y-4">
+          <Balances partners={partners} balances={balances} unassignedCount={unassigned.length} navigate={navigate} />
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Gastos Totales</div>
+              <div className="font-heading font-extrabold text-3xl md:text-4xl text-destructive">{money(total)}</div>
+              {byPayer.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {byPayer.map(p => <Badge key={p.id} variant="outline">{p.name}: {money(p.total)}</Badge>)}
+                </div>
+              )}
+              {byCategory.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {byCategory.map(c => <Badge key={c.id} variant="secondary">{c.label}: {money(c.total)}</Badge>)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-2 space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <Button className="h-11" onClick={() => open('cost')}><Plus /> Gasto</Button>
+            <Button className="h-11" variant="outline" onClick={() => open('transfer')}><ArrowLeftRight /> Transferencia</Button>
+          </div>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-2 rounded-lg bg-muted p-1 mb-4">
+                {[['costs', `Gastos (${costs.length})`], ['transfers', `Transferencias (${transfers.length})`]].map(([id, label]) => (
+                  <button key={id} onClick={() => setTab(id)}
+                    className={cn('h-9 rounded-md text-sm font-medium transition-colors', tab === id ? 'bg-card shadow-sm' : 'text-muted-foreground')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {tab === 'costs' ? (
+                <>
+                  {costs.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 mb-2 -mx-1 px-1">
+                      {filterOptions.map(o => (
+                        <button key={o.id} onClick={() => setPayerFilter(o.id)}
+                          className={cn('shrink-0 h-8 px-3 rounded-full border text-xs font-medium transition-colors',
+                            payerFilter === o.id ? 'border-primary bg-primary text-primary-foreground' : 'border-input text-muted-foreground')}>
+                          {o.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {shownCosts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      {costs.length === 0 ? 'Aun no hay gastos registrados.' : 'No hay gastos con este filtro.'}
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {shownCosts.map(c => (
+                        <button key={c._id} onClick={() => open('cost', c)} className="w-full flex items-center gap-3 py-3 text-left">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold truncate">{c.description}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {formatDay(c.date)} · {(COST_CATEGORIES.find(x => x.id === c.category) || COST_CATEGORIES[5]).label} ·{' '}
+                              <span className={cn(!c.paidBy && 'text-status-pendiente font-medium')}>{nameOf(c.paidBy)}</span>
+                            </div>
+                          </div>
+                          <div className="font-heading font-extrabold text-destructive whitespace-nowrap">{money(c.amount)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : transfers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Aun no hay transferencias. Registralas cuando la empresa le devuelva plata a un socio o un socio le pague al otro.
+                </p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {transfers.map(t => (
+                    <button key={t._id} onClick={() => open('transfer', t)} className="w-full flex items-center gap-3 py-3 text-left">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold truncate flex items-center gap-1.5">
+                          {nameOf(t.from)} <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" /> {nameOf(t.to)}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">{formatDay(t.date)}{t.note && ` · ${t.note}`}</div>
+                      </div>
+                      <div className="font-heading font-extrabold whitespace-nowrap">{money(t.amount)}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side={isMobile ? 'bottom' : 'right'}
+          className={cn('overflow-y-auto', isMobile ? 'max-h-[92svh] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'sm:max-w-md')}>
+          {sheet?.kind === 'cost' && (
+            <CostForm key={sheet.item?._id || 'new'} cost={sheet.item} payers={payers} partners={partners} onDone={close}
+              onSave={sheet.item ? (data) => onEdit(sheet.item._id, data) : onAdd}
+              onDelete={sheet.item && (() => onDelete(sheet.item._id))} />
+          )}
+          {sheet?.kind === 'transfer' && (
+            <TransferForm key={sheet.item?._id || 'new'} transfer={sheet.item} payers={payers} partners={partners} onDone={close}
+              onSave={sheet.item ? (data) => onEditTransfer(sheet.item._id, data) : onAddTransfer}
+              onDelete={sheet.item && (() => onDeleteTransfer(sheet.item._id))} />
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function Balances({ partners, balances, unassignedCount, navigate }) {
+  if (partners.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6 space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldos</div>
+          <p className="text-sm text-muted-foreground">
+            Agregá los socios en Configuración para registrar quién pagó cada gasto y ver cuánto se le debe a cada uno.
+          </p>
+          <Button variant="outline" onClick={() => navigate('settings')}>Configurar socios</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const settlements = partners.length > 1 ? settleUp(partners, balances) : [];
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Saldos con la empresa</div>
+        <div className="divide-y divide-border">
+          {partners.map(p => {
+            const b = balances[p.id];
+            return (
+              <div key={p.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{p.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {b > 0.005 ? 'La empresa le debe' : b < -0.005 ? 'Le debe a la empresa' : 'Al día'}
+                  </div>
+                </div>
+                <div className={cn('font-heading font-extrabold text-xl whitespace-nowrap',
+                  b > 0.005 ? 'text-status-entregado' : b < -0.005 ? 'text-destructive' : 'text-muted-foreground')}>
+                  {money(Math.abs(b))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {partners.length > 1 && (
+          <div className="mt-2 rounded-lg bg-muted px-3 py-2.5">
+            <div className="text-xs font-semibold text-muted-foreground mb-1">Para quedar parejos entre socios</div>
+            {settlements.length === 0 ? (
+              <p className="text-sm">Están parejos.</p>
+            ) : settlements.map((s, i) => (
+              <p key={i} className="text-sm"><strong>{s.from.name}</strong> le debe <strong>{money(s.amount)}</strong> a <strong>{s.to.name}</strong></p>
+            ))}
+          </div>
+        )}
+
+        {unassignedCount > 0 && (
+          <p className="text-xs text-status-pendiente mt-3">
+            {unassignedCount} gasto{unassignedCount !== 1 ? 's' : ''} sin indicar quién pagó. No cuenta{unassignedCount !== 1 ? 'n' : ''} en los saldos.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CostForm({ cost, payers, partners, onSave, onDelete, onDone }) {
+  const [description, setDescription] = useState(cost?.description || '');
+  const [amount, setAmount] = useState(cost?.amount ?? '');
+  const [category, setCategory] = useState(cost?.category || 'ingredientes');
+  const [paidBy, setPaidBy] = useState(cost ? cost.paidBy || '' : myPartnerId(partners) || COMPANY.id);
+  const [date, setDate] = useState(cost ? cost.date.slice(0, 10) : todayISO());
+  const [error, setError] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
     const amt = parseFloat(amount) || 0;
     if (!description.trim()) { setError('Descripcion requerida'); return; }
     if (amt <= 0) { setError('Monto debe ser mayor a 0'); return; }
-    setError('');
-    await onAdd({
+    if (!paidBy) { setError('Indicá quién pagó'); return; }
+    await onSave({
       description: description.trim(),
       amount: amt,
       category,
+      paidBy,
       date: new Date(date).toISOString(),
-      createdAt: new Date().toISOString(),
+      ...(!cost && { createdAt: new Date().toISOString() }),
     });
-    setDescription('');
-    setAmount('');
+    onDone();
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`¿Eliminar el gasto "${cost.description}"?`)) return;
+    await onDelete();
+    onDone();
   };
 
   return (
     <>
-      <PageHeader title="Gastos" subtitle="Registra los gastos del negocio para ver la ganancia neta" />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <Card className="lg:col-span-1">
-          <CardContent className="pt-6 space-y-4">
-            <form onSubmit={submit} className="space-y-4">
-              <div>
-                <Label>Descripcion *</Label>
-                <Input placeholder="ej. Compra de frutas" value={description} onChange={e => setDescription(e.target.value)} />
-              </div>
-              <div>
-                <Label>Categoria</Label>
-                <select
-                  value={category}
-                  onChange={e => setCategory(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                  {COST_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Monto (colones) *</Label>
-                <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-              </div>
-              <div>
-                <Label>Fecha</Label>
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
-              </div>
-              {error && <p className="text-destructive text-xs">{error}</p>}
-              <Button type="submit" className="w-full">Agregar Gasto</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Gastos Totales</div>
-              <div className="font-heading font-extrabold text-4xl text-destructive">₡{total.toLocaleString()}</div>
-              {byCategory.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {byCategory.map(c => (
-                    <Badge key={c.id} variant="secondary">{c.label}: ₡{c.total.toLocaleString()}</Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Historial ({costs.length})</div>
-              {costs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">Aun no hay gastos registrados.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Descripcion</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Monto</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {costs.map(c => <CostRow key={c._id} cost={c} onDelete={onDelete} onEdit={onEdit} />)}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+      <SheetHeader>
+        <SheetTitle>{cost ? 'Editar gasto' : 'Nuevo gasto'}</SheetTitle>
+        <SheetDescription className="sr-only">Descripcion, monto y quién pagó</SheetDescription>
+      </SheetHeader>
+      <form onSubmit={submit} className="space-y-4 px-4 pb-4">
+        <div>
+          <Label>Descripcion *</Label>
+          <Input className="h-10" placeholder="ej. Compra de frutas" value={description} onChange={e => setDescription(e.target.value)} />
         </div>
-      </div>
+        <div>
+          <Label>Monto (colones) *</Label>
+          <Input className="h-10 font-heading font-extrabold" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0"
+            value={amount} onChange={e => setAmount(e.target.value)} />
+        </div>
+        <div>
+          <Label>¿Quién pagó? *</Label>
+          <ChoiceButtons options={payers} value={paidBy} onChange={setPaidBy} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Categoria</Label>
+            <select value={category} onChange={e => setCategory(e.target.value)}
+              className="h-10 w-full rounded-lg border border-input bg-transparent px-2.5 text-base md:text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+              {COST_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <Label>Fecha</Label>
+            <Input className="h-10" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+        </div>
+        {error && <p className="text-destructive text-xs">{error}</p>}
+        <Button type="submit" className="w-full h-11">{cost ? 'Guardar' : 'Agregar Gasto'}</Button>
+        {onDelete && <Button type="button" variant="destructive" className="w-full h-11" onClick={remove}>Eliminar</Button>}
+      </form>
     </>
   );
 }
 
-function CostRow({ cost, onDelete, onEdit }) {
-  const [editing, setEditing] = useState(false);
-  const [description, setDescription] = useState(cost.description);
-  const [amount, setAmount] = useState(cost.amount);
-  const [category, setCategory] = useState(cost.category || 'otros');
+function TransferForm({ transfer, payers, partners, onSave, onDelete, onDone }) {
+  const [from, setFrom] = useState(transfer?.from || COMPANY.id);
+  const [to, setTo] = useState(transfer?.to || myPartnerId(partners) || partners[0]?.id || '');
+  const [amount, setAmount] = useState(transfer?.amount ?? '');
+  const [date, setDate] = useState(transfer ? transfer.date.slice(0, 10) : todayISO());
+  const [note, setNote] = useState(transfer?.note || '');
+  const [error, setError] = useState('');
 
-  const d = new Date(cost.date);
-  const dateStr = d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  const save = async () => {
+  const submit = async (e) => {
+    e.preventDefault();
     const amt = parseFloat(amount) || 0;
-    if (!description.trim() || amt <= 0) return;
-    await onEdit(cost._id, { description: description.trim(), amount: amt, category });
-    setEditing(false);
+    if (!from || !to) { setError('Indicá de quién y para quién'); return; }
+    if (from === to) { setError('Elegí dos personas distintas'); return; }
+    if (amt <= 0) { setError('Monto debe ser mayor a 0'); return; }
+    await onSave({
+      from, to, amount: amt, note: note.trim(),
+      date: new Date(date).toISOString(),
+      ...(!transfer && { createdAt: new Date().toISOString() }),
+    });
+    onDone();
   };
-  const cancel = () => { setDescription(cost.description); setAmount(cost.amount); setCategory(cost.category || 'otros'); setEditing(false); };
 
-  if (editing) {
-    return (
-      <TableRow className="bg-primary/5">
-        <TableCell className="text-xs text-muted-foreground">{dateStr}</TableCell>
-        <TableCell><Input value={description} onChange={e => setDescription(e.target.value)} className="h-8 text-xs" /></TableCell>
-        <TableCell>
-          <select value={category} onChange={e => setCategory(e.target.value)}
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none">
-            {COST_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
-        </TableCell>
-        <TableCell><Input type="number" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="h-8 text-xs w-24" /></TableCell>
-        <TableCell>
-          <div className="flex gap-1">
-            <Button size="sm" onClick={save}>Guardar</Button>
-            <Button variant="outline" size="sm" onClick={cancel}>Cancelar</Button>
-          </div>
-        </TableCell>
-      </TableRow>
-    );
-  }
-
-  const catLabel = (COST_CATEGORIES.find(c => c.id === cost.category) || COST_CATEGORIES[5]).label;
+  const remove = async () => {
+    if (!window.confirm('¿Eliminar esta transferencia?')) return;
+    await onDelete();
+    onDone();
+  };
 
   return (
-    <TableRow>
-      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{dateStr}</TableCell>
-      <TableCell className="font-semibold">{cost.description}</TableCell>
-      <TableCell><Badge variant="secondary">{catLabel}</Badge></TableCell>
-      <TableCell className="font-heading font-extrabold text-destructive whitespace-nowrap">₡{cost.amount.toLocaleString()}</TableCell>
-      <TableCell>
-        <div className="flex gap-1">
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Editar</Button>
-          <Button variant="destructive" size="sm" onClick={() => onDelete(cost._id)}>Eliminar</Button>
+    <>
+      <SheetHeader>
+        <SheetTitle>{transfer ? 'Editar transferencia' : 'Nueva transferencia'}</SheetTitle>
+        <SheetDescription>
+          Ej.: la empresa le devuelve plata a un socio, un socio le paga al otro, o un socio se queda con plata de ventas (Empresa → socio).
+        </SheetDescription>
+      </SheetHeader>
+      <form onSubmit={submit} className="space-y-4 px-4 pb-4">
+        <div>
+          <Label>De</Label>
+          <ChoiceButtons options={payers} value={from} onChange={setFrom} />
         </div>
-      </TableCell>
-    </TableRow>
+        <div>
+          <Label>Para</Label>
+          <ChoiceButtons options={payers} value={to} onChange={setTo} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Monto (colones) *</Label>
+            <Input className="h-10 font-heading font-extrabold" type="number" inputMode="decimal" min="0" step="0.01" placeholder="0"
+              value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+          <div>
+            <Label>Fecha</Label>
+            <Input className="h-10" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <Label>Nota (opcional)</Label>
+          <Input className="h-10" placeholder="ej. SINPE reembolso frutas" value={note} onChange={e => setNote(e.target.value)} />
+        </div>
+        {error && <p className="text-destructive text-xs">{error}</p>}
+        <Button type="submit" className="w-full h-11">{transfer ? 'Guardar' : 'Registrar Transferencia'}</Button>
+        {onDelete && <Button type="button" variant="destructive" className="w-full h-11" onClick={remove}>Eliminar</Button>}
+      </form>
+    </>
   );
 }
 
 // ─── Orders List ────────────────────────────────────────────────────────────
 function OrdersList({ orders, onDelete, onEdit }) {
   const [view, setView] = useState('cards');
+  const isMobile = useIsMobile();
+  const showTable = view === 'table' && !isMobile;
 
   return (
     <>
       <PageHeader title="Pedidos" subtitle={`${orders.length} pedido${orders.length !== 1 ? 's' : ''} en total`}>
         {orders.length > 0 && (
-          <div className="flex border border-border rounded-lg overflow-hidden">
+          <div className="hidden md:flex border border-border rounded-lg overflow-hidden">
             <button onClick={() => setView('cards')} title="Vista de tarjetas"
               className={cn('w-9 h-9 flex items-center justify-center border-none cursor-pointer transition-colors', view === 'cards' ? 'bg-primary text-white' : 'bg-card text-muted-foreground hover:bg-secondary')}>
               <LayoutGrid className="h-4 w-4" />
@@ -1232,7 +1573,7 @@ function OrdersList({ orders, onDelete, onEdit }) {
           <div className="text-4xl mb-3">📋</div>
           <div>Aun no hay pedidos.</div>
         </div>
-      ) : view === 'cards' ? (
+      ) : !showTable ? (
         <div className="flex flex-col gap-5">
           {STATUSES.map(s => {
             const col = orders.filter(o => (o.status || 'pendiente') === s.id);
