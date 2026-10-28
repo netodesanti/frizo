@@ -3,138 +3,144 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
-@theme {
-  --color-background: #f2e9da;
-  --color-foreground: #1a1a2e;
-  --color-card: #ffffff;
-  --color-card-foreground: #1a1a2e;
-  --color-popover: #ffffff;
-  --color-popover-foreground: #1a1a2e;
-  --color-primary: #a0cd32;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #faf6f0;
-  --color-secondary-foreground: #1a1a2e;
-  --color-muted: #faf6f0;
-  --color-muted-foreground: #6b6b80;
-  --color-accent: #faf6f0;
-  --color-accent-foreground: #1a1a2e;
-  --color-destructive: #e74c3c;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #e0d6c8;
-  --color-input: #e0d6c8;
-  --color-ring: #a0cd32;
-
-  --color-verde: #5cb85c;
-  --color-antioxidante: #e84393;
-  --color-boost: #f39c12;
-
-  --color-status-pendiente: #e67e22;
-  --color-status-preparando: #2980b9;
-  --color-status-entregado: #27ae60;
-  --color-status-pagado: #8db82a;
-  --color-status-cancelado: #e74c3c;
-
-  --font-heading: 'Playfair Display', serif;
-  --font-body: 'DM Sans', sans-serif;
-  --font-sans: 'DM Sans', sans-serif;
-
-  --radius-lg: 14px;
-  --radius-md: 8px;
-  --radius-sm: 6px;
-}
-
-body {
-  font-family: var(--font-body);
-  background: var(--color-background);
-  color: var(--color-foreground);
-  -webkit-font-smoothing: antialiased;
-}
-
-.pac-container {
-  z-index: 9999 !important;
-}
-
-.places-autocomplete-wrap gmp-place-autocomplete {
-  width: 100%;
-}
-
-.places-autocomplete-wrap gmp-place-autocomplete::part(input) {
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-}
-
+/* iOS system colors, tinted with Frizo's greens. Dark mode follows the phone. */
 :root {
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  color-scheme: light dark;
+
+  --brand-lime: #a0cd32;
+  --brand-green: #194b14;
+  --brand-pink: #fb329c;
+
+  --background: #f2f2f7;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-elevated: #ffffff;
+  --card-foreground: #000000;
+  --sheet: #f2f2f7;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #237a1b;
+  --primary-foreground: #ffffff;
+  --secondary: #e9e9ee;
+  --secondary-foreground: #000000;
+  --muted: #e9e9ee;
+  --muted-foreground: #8a8a8e;
+  --accent: #e9e9ee;
+  --accent-foreground: #000000;
+  --destructive: #ff3b30;
+  --success: #34c759;
+  --warning: #ff9500;
+  --border: #d8d8dc;
+  --separator: #c6c6c8;
+  --input: #d1d1d6;
+  --ring: #237a1b;
+  --segment: rgb(118 118 128 / 0.12);
+  --segment-selected: #ffffff;
+  --bar: rgb(249 249 249 / 0.82);
+
+  --status-pendiente: #ff9500;
+  --status-preparando: #007aff;
+  --status-entregado: #5856d6;
+  --status-pagado: #34c759;
+  --status-cancelado: #8e8e93;
+
+  --sidebar: #f7f7f9;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #237a1b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9e9ee;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #d8d8dc;
+  --sidebar-ring: #237a1b;
+
+  --radius: 0.75rem;
 }
 
-.dark {
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --foreground: #ffffff;
+    --card: #1c1c1e;
+    --card-elevated: #2c2c2e;
+    --card-foreground: #ffffff;
+    --sheet: #1c1c1e;
+    --popover: #2c2c2e;
+    --popover-foreground: #ffffff;
+    --primary: #a0cd32;
+    --primary-foreground: #0f2a0c;
+    --secondary: #2c2c2e;
+    --secondary-foreground: #ffffff;
+    --muted: #2c2c2e;
+    --muted-foreground: #8d8d93;
+    --accent: #2c2c2e;
+    --accent-foreground: #ffffff;
+    --destructive: #ff453a;
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --border: #38383a;
+    --separator: #38383a;
+    --input: #3a3a3c;
+    --ring: #a0cd32;
+    --segment: rgb(118 118 128 / 0.24);
+    --segment-selected: #636366;
+    --bar: rgb(22 22 23 / 0.82);
+
+    --status-pendiente: #ff9f0a;
+    --status-preparando: #0a84ff;
+    --status-entregado: #5e5ce6;
+    --status-pagado: #30d158;
+    --status-cancelado: #8d8d93;
+
+    --sidebar: #1c1c1e;
+    --sidebar-foreground: #ffffff;
+    --sidebar-primary: #a0cd32;
+    --sidebar-primary-foreground: #0f2a0c;
+    --sidebar-accent: #2c2c2e;
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: #38383a;
+    --sidebar-ring: #a0cd32;
+  }
 }
 
 @theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter Variable', 'Segoe UI', Roboto, sans-serif;
+  --font-heading: var(--font-sans);
+
+  --color-brand-lime: var(--brand-lime);
+  --color-brand-green: var(--brand-green);
+  --color-brand-pink: var(--brand-pink);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-sheet: var(--sheet);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-separator: var(--separator);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-segment: var(--segment);
+  --color-segment-selected: var(--segment-selected);
+  --color-bar: var(--bar);
+  --color-status-pendiente: var(--status-pendiente);
+  --color-status-preparando: var(--status-preparando);
+  --color-status-entregado: var(--status-entregado);
+  --color-status-pagado: var(--status-pagado);
+  --color-status-cancelado: var(--status-cancelado);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -143,31 +149,7 @@ body {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-heading: var(--font-sans);
-  --font-sans: 'Inter Variable', sans-serif;
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -181,10 +163,34 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
   }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  button {
+    cursor: pointer;
+    -webkit-touch-callout: none;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+.places-autocomplete-wrap gmp-place-autocomplete {
+  width: 100%;
+  color-scheme: light dark;
+}
+
+.places-autocomplete-wrap gmp-place-autocomplete::part(input) {
+  font-family: var(--font-sans);
+  font-size: 17px;
 }
