@@ -115,6 +115,8 @@
   }
   body {
     @apply text-foreground antialiased;
+    /* Never let the page itself scroll sideways; rows that should swipe scroll on their own. */
+    overflow-x: clip;
     background:
       radial-gradient(900px 420px at 50% -160px, rgb(160 205 50 / 0.22), transparent 70%),
       radial-gradient(600px 300px at 100% 0, rgb(251 50 156 / 0.06), transparent 70%),

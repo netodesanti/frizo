@@ -65,7 +65,7 @@ export function RoutesPage() {
           onClick={() => navigate('settings/addresses')} />
       )}
 
-      <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,400px)_1fr] lg:gap-6">
+      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,400px)_1fr] lg:gap-6">
         <Card className="overflow-hidden p-1.5 lg:sticky lg:top-20 lg:order-2">
           <div className="overflow-hidden rounded-[22px]">
             <GoogleMap mapContainerClassName="h-[42svh] w-full lg:h-[calc(100svh-8rem)]" zoom={12}

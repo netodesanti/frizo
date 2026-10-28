@@ -107,7 +107,7 @@ export function DashboardPage() {
         </DropdownMenuContent>
       </DropdownMenu>
     }>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <Hero summary={summary} rangeLabel={rangeLabel} week={lastWeek(orders)} />
         <div className="grid grid-cols-2 gap-3">
           <CountTile icon={Truck} tone="butter" label="Por entregar" value={open.length} unit="pedidos" onClick={() => navigate('orders')} />
@@ -124,7 +124,7 @@ export function DashboardPage() {
 
       <ListItem icon={Wallet} tone="peach" title="¿Gastaste algo?" subtitle="Registrá un gasto en segundos" chevron onClick={() => navigate('costs/new')} />
 
-      <div className="grid items-start gap-7 md:grid-cols-2 md:gap-6">
+      <div className="grid grid-cols-1 items-start gap-7 md:grid-cols-2 md:gap-6">
         <Section title="Por entregar" action={<LinkButton onClick={() => navigate('orders')}>Ver todos</LinkButton>}>
           <Chips value={queue} onChange={setQueue} options={[
             { id: 'pendiente', label: 'Pendientes', count: orders.filter(o => (o.status || 'pendiente') === 'pendiente').length },
