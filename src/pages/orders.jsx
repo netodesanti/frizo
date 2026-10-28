@@ -1,60 +1,59 @@
 import { useState } from 'react';
-import { ClipboardList, FileSpreadsheet, Plus, Route } from 'lucide-react';
+import { FileSpreadsheet, Plus, Route } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { newId, statusOf } from '@/lib/data';
 import { navigate, goBack } from '@/lib/nav';
-import { Screen, Group, NavButton, Segmented, SearchField, EmptyState, BigButton } from '@/components/ios';
-import { OrderForm, OrderListRow, OrderSheet } from '@/components/orders';
+import { Screen, Section, Stack, IconButton, Chips, SearchField, EmptyState, Button } from '@/components/kit';
+import { OrderForm, OrderCard, OrderSheet } from '@/components/orders';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
-const VIEWS = [
-  { id: 'active', label: 'Activos', statuses: ['pendiente', 'preparando', 'entregado'] },
-  { id: 'paid', label: 'Pagados', statuses: ['pagado'] },
-  { id: 'cancelled', label: 'Cancelados', statuses: ['cancelado'] },
+const ACTIVE = ['pendiente', 'preparando', 'entregado'];
+const FILTERS = [
+  { id: 'active', label: 'Activos', statuses: ACTIVE },
+  ...['pendiente', 'preparando', 'entregado', 'pagado', 'cancelado'].map(s => ({ id: s, label: statusOf(s).label, statuses: [s] })),
 ];
 
 export function OrdersPage() {
   const { orders } = useStore();
-  const [view, setView] = useState('active');
+  const [filter, setFilter] = useState('active');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
 
   const q = search.trim().toLowerCase();
   const matches = orders.filter(o => !q || [o.customer, o.location, o.notes].some(v => v?.toLowerCase().includes(q)));
-  const count = (v) => matches.filter(o => v.statuses.includes(o.status || 'pendiente')).length;
-  const current = VIEWS.find(v => v.id === view);
+  const current = FILTERS.find(f => f.id === filter);
   const sections = current.statuses
     .map(s => ({ status: s, items: matches.filter(o => (o.status || 'pendiente') === s) }))
     .filter(s => s.items.length);
 
   return (
-    <Screen title="Pedidos" actions={
+    <Screen title="Pedidos" eyebrow={`${orders.filter(o => ACTIVE.includes(o.status || 'pendiente')).length} activos`} actions={
       <>
-        <NavButton icon={Route} label="Rutas" onClick={() => navigate('orders/routes')} />
+        <IconButton icon={Route} label="Rutas" onClick={() => navigate('orders/routes')} />
         <DropdownMenu>
-          <DropdownMenuTrigger asChild><NavButton icon={Plus} label="Nuevo" /></DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52">
-            <DropdownMenuItem onSelect={() => navigate('orders/new')}><Plus /> Nuevo pedido</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => navigate('orders/bulk')}><FileSpreadsheet /> Importar desde Excel</DropdownMenuItem>
+          <DropdownMenuTrigger asChild><IconButton icon={Plus} label="Nuevo" dark /></DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56 rounded-2xl p-1.5">
+            <DropdownMenuItem onSelect={() => navigate('orders/new')} className="rounded-xl py-2.5 text-[15px]"><Plus /> Nuevo pedido</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate('orders/bulk')} className="rounded-xl py-2.5 text-[15px]"><FileSpreadsheet /> Importar desde Excel</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </>
     }>
       <div className="space-y-3">
         <SearchField value={search} onChange={setSearch} placeholder="Buscar cliente o dirección" />
-        <Segmented value={view} onChange={setView}
-          options={VIEWS.map(v => ({ id: v.id, label: count(v) ? `${v.label} (${count(v)})` : v.label }))} />
+        <Chips value={filter} onChange={setFilter}
+          options={FILTERS.map(f => ({ id: f.id, label: f.label, count: matches.filter(o => f.statuses.includes(o.status || 'pendiente')).length }))} />
       </div>
 
       {sections.length === 0 ? (
-        <EmptyState icon={ClipboardList} title={q ? 'Sin resultados' : 'No hay pedidos acá'}
-          action={!q && view === 'active' && <BigButton onClick={() => navigate('orders/new')}><Plus /> Nuevo pedido</BigButton>}>
-          {q ? `Nada coincide con “${search}”.` : view === 'active' ? 'Los pedidos pendientes, en preparación y entregados aparecen acá.' : null}
+        <EmptyState emoji={q ? '🔍' : '📋'} title={q ? 'Sin resultados' : 'Nada por acá'}
+          action={!q && filter === 'active' && <Button onClick={() => navigate('orders/new')}><Plus /> Nuevo pedido</Button>}>
+          {q ? `Nada coincide con “${search}”.` : 'Cuando entren pedidos los vas a ver acá.'}
         </EmptyState>
       ) : sections.map(s => (
-        <Group key={s.status} header={current.statuses.length > 1 ? `${statusOf(s.status).label} · ${s.items.length}` : undefined}>
-          {s.items.map(o => <OrderListRow key={o._id} order={o} onClick={() => setSelected(o)} />)}
-        </Group>
+        <Section key={s.status} title={current.statuses.length > 1 ? `${statusOf(s.status).label} · ${s.items.length}` : undefined}>
+          <Stack>{s.items.map(o => <OrderCard key={o._id} order={o} showStatus={current.statuses.length === 1} onClick={() => setSelected(o)} />)}</Stack>
+        </Section>
       ))}
 
       <OrderSheet order={selected} onClose={() => setSelected(null)} />
@@ -70,10 +69,9 @@ export function NewOrderPage() {
   };
 
   return (
-    <Screen title="Nuevo pedido" back={{ label: 'Pedidos', onClick: () => goBack('orders') }}
-      actions={<NavButton label="Crear" bold type="submit" form="new-order" />}>
+    <Screen title="Nuevo pedido" back={{ label: 'Pedidos', onClick: () => goBack('orders') }}>
       <OrderForm id="new-order" onSubmit={create}>
-        <BigButton type="submit">Crear pedido</BigButton>
+        <Button type="submit">Crear pedido</Button>
       </OrderForm>
     </Screen>
   );

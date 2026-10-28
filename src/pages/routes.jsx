@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer } from '@react-google-maps/api';
-import { Check, Navigation } from 'lucide-react';
+import { Check, Factory, Navigation } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { STATUSES } from '@/lib/data';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
-import { Screen, Group, Row, ButtonRow, BigButton } from '@/components/ios';
+import { Screen, Section, Stack, Card, ListItem, Chips, Button, Avatar, LinkButton } from '@/components/kit';
 
 const point = (lat, lng) => `${lat},${lng}`;
 
@@ -61,77 +61,83 @@ export function RoutesPage() {
   return (
     <Screen title="Rutas" wide back={{ label: 'Pedidos', onClick: () => goBack('orders') }}>
       {!origin && (
-        <Group footer="Es el punto de salida de las rutas.">
-          <ButtonRow onClick={() => navigate('settings/addresses')}>Configurar dirección de la fábrica</ButtonRow>
-        </Group>
+        <ListItem icon={Factory} tone="butter" title="Configurá la fábrica" subtitle="Es el punto de salida de las rutas" chevron
+          onClick={() => navigate('settings/addresses')} />
       )}
 
-      <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,380px)_1fr] lg:gap-6">
-        <div className="overflow-hidden rounded-xl bg-card lg:sticky lg:top-16 lg:order-2">
-          <GoogleMap mapContainerClassName="h-[45svh] w-full lg:h-[calc(100svh-6rem)]" zoom={12}
-            center={origin || { lat: 9.9281, lng: -84.0907 }} options={{ disableDefaultUI: true, zoomControl: true }}>
-            {directions && <DirectionsRenderer directions={directions} />}
-            {!directions && origin && <Marker position={origin} label="F" />}
-          </GoogleMap>
-        </div>
-        <div className="space-y-7 lg:order-1">
-          <div className="flex flex-wrap gap-2">
-            {STATUSES.map(s => (
-              <button key={s.id} onClick={() => toggleStatus(s.id)}
-                className={cn('h-8 rounded-full px-3.5 text-[15px] font-medium transition-colors',
-                  statusFilter.includes(s.id) ? 'bg-primary text-primary-foreground' : 'bg-segment text-foreground/80')}>
-                {s.label}
-              </button>
-            ))}
+      <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,400px)_1fr] lg:gap-6">
+        <Card className="overflow-hidden p-1.5 lg:sticky lg:top-20 lg:order-2">
+          <div className="overflow-hidden rounded-[22px]">
+            <GoogleMap mapContainerClassName="h-[42svh] w-full lg:h-[calc(100svh-8rem)]" zoom={12}
+              center={origin || { lat: 9.9281, lng: -84.0907 }} options={{ disableDefaultUI: true, zoomControl: true }}>
+              {directions && <DirectionsRenderer directions={directions} />}
+              {!directions && origin && <Marker position={origin} label="F" />}
+            </GoogleMap>
           </div>
+        </Card>
 
-          <Group header={`Paradas · ${selectedIds.size} de ${eligible.length}`}
-            footer={withoutCoords.length > 0 && `${withoutCoords.length} pedido${withoutCoords.length !== 1 ? 's' : ''} sin dirección en el mapa. Editalos para buscar la dirección.`}>
-            {eligible.length === 0
-              ? <Row title="No hay pedidos con dirección" subtitle="Probá con otros estados" />
-              : (
-                <>
-                  <ButtonRow onClick={toggleAll}>{selectedIds.size === eligible.length ? 'Deseleccionar todo' : 'Seleccionar todo'}</ButtonRow>
-                  {eligible.map(o => (
-                    <Row key={o._id} title={o.customer} subtitle={o.location} onClick={() => toggleOrder(o._id)}>
-                      <Check className={cn('size-5 shrink-0 text-primary', !selectedIds.has(o._id) && 'invisible')} strokeWidth={2.5} />
-                    </Row>
-                  ))}
-                </>
-              )}
-          </Group>
-
-          {error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
-          <BigButton onClick={calculate} disabled={!origin || calculating || selectedIds.size === 0}>
-            {calculating ? 'Calculando…' : `Calcular ruta (${selectedIds.size} parada${selectedIds.size !== 1 ? 's' : ''})`}
-          </BigButton>
-
+        <div className="space-y-7 lg:order-1">
           {route && (
-            <>
-              <Group header={`Ruta · ${totalKm.toFixed(1)} km · ${totalMin} min`}>
-                <Row leading={<StopBadge>F</StopBadge>} title="Fábrica" subtitle="Salida" />
-                {stops.map((s, i) => (
-                  <Row key={s.order._id} leading={<StopBadge>{i + 1}</StopBadge>} title={s.order.customer}
-                    subtitle={`${s.leg.distance.text} · ${s.leg.duration.text}`} />
-                ))}
-                <Row leading={<StopBadge>{settings.returnLat ? 'R' : 'F'}</StopBadge>}
-                  title={settings.returnLat ? settings.returnAddress : 'Regreso a la fábrica'}
-                  subtitle={`${lastLeg.distance.text} · ${lastLeg.duration.text}`} />
-              </Group>
-              <BigButton variant="tinted" onClick={() => window.open(mapsLink, '_blank')}><Navigation /> Abrir en Google Maps</BigButton>
-            </>
+            <div className="grain overflow-hidden rounded-[28px] bg-primary p-5 text-white shadow-float">
+              <div className="text-[13px] text-white/60">Ruta optimizada</div>
+              <div className="font-display text-[34px] font-bold leading-tight text-brand-lime">{totalKm.toFixed(1)} km · {totalMin} min</div>
+              <div className="mt-4 space-y-2.5">
+                <Stop n="F" title="Fábrica" sub="Salida" />
+                {stops.map((s, i) => <Stop key={s.order._id} n={i + 1} title={s.order.customer} sub={`${s.leg.distance.text} · ${s.leg.duration.text}`} />)}
+                <Stop n={settings.returnLat ? 'R' : 'F'} title={settings.returnLat ? settings.returnAddress : 'Regreso a la fábrica'}
+                  sub={`${lastLeg.distance.text} · ${lastLeg.duration.text}`} />
+              </div>
+              <Button variant="lime" className="mt-5" onClick={() => window.open(mapsLink, '_blank')}><Navigation /> Abrir en Google Maps</Button>
+            </div>
           )}
-        </div>
 
+          <Chips value={statusFilter} onChange={toggleStatus} options={STATUSES.map(s => ({ id: s.id, label: s.label }))} />
+
+          <Section title={`Paradas · ${selectedIds.size}/${eligible.length}`}
+            action={eligible.length > 0 && <LinkButton onClick={toggleAll}>{selectedIds.size === eligible.length ? 'Ninguna' : 'Todas'}</LinkButton>}>
+            {eligible.length === 0
+              ? <p className="px-1 text-[14px] text-muted-foreground">No hay pedidos con dirección en estos estados.</p>
+              : (
+                <Stack>
+                  {eligible.map(o => {
+                    const on = selectedIds.has(o._id);
+                    return (
+                      <ListItem key={o._id} leading={<Avatar name={o.customer} />} title={o.customer} subtitle={o.location}
+                        onClick={() => toggleOrder(o._id)} className={cn(on && 'ring-2 ring-brand-lime')}
+                        trailing={
+                          <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-full transition-colors', on ? 'bg-primary text-brand-lime' : 'bg-muted text-transparent')}>
+                            <Check className="size-4" strokeWidth={3} />
+                          </span>
+                        } />
+                    );
+                  })}
+                </Stack>
+              )}
+            {withoutCoords.length > 0 && (
+              <p className="px-1 text-[13px] text-muted-foreground">
+                {withoutCoords.length} pedido{withoutCoords.length !== 1 ? 's' : ''} sin dirección en el mapa. Editalos para buscar la dirección.
+              </p>
+            )}
+          </Section>
+
+          {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+          <Button onClick={calculate} disabled={!origin || calculating || selectedIds.size === 0}>
+            {calculating ? 'Calculando…' : `Calcular ruta · ${selectedIds.size} parada${selectedIds.size !== 1 ? 's' : ''}`}
+          </Button>
+        </div>
       </div>
     </Screen>
   );
 }
 
-function StopBadge({ children }) {
+function Stop({ n, title, sub }) {
   return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-primary-foreground">
-      {children}
-    </span>
+    <div className="flex items-center gap-3">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-lime text-[13px] font-bold text-brand-green">{n}</span>
+      <div className="min-w-0">
+        <div className="truncate text-[15px] font-semibold">{title}</div>
+        <div className="text-[12px] text-white/60">{sub}</div>
+      </div>
+    </div>
   );
 }

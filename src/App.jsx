@@ -41,7 +41,7 @@ function Shell() {
   if (loading) {
     return (
       <div className="flex min-h-svh items-center justify-center">
-        <img src={logo} alt="Frizo" className="h-9 w-auto animate-pulse dark:brightness-0 dark:invert" />
+        <img src={logo} alt="Frizo" className="h-10 w-auto animate-pulse" />
       </div>
     );
   }
@@ -51,7 +51,7 @@ function Shell() {
       <div className="sticky top-0 hidden h-svh shrink-0 md:block">
         <AppSidebar tab={tab} route={route} totalStock={sumQty(stock)} />
       </div>
-      <div className="min-w-0 flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-12">
+      <div className="min-w-0 flex-1 pb-[calc(7.5rem+env(safe-area-inset-bottom))] md:pb-12">
         <Screens route={route} />
       </div>
       <TabBar tab={tab} />

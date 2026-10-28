@@ -1,45 +1,49 @@
 import { useEffect, useState } from 'react';
 import { signOut } from 'firebase/auth';
-import { Archive, Calculator, MapPin, Plus, Users } from 'lucide-react';
+import { Archive, ArrowLeftRight, Calculator, LogOut, MapPin, Pencil, Plus, Users } from 'lucide-react';
 import { auth } from '@/firebase';
 import { useStore } from '@/lib/store';
-import { COMPANY, newId, partnerBalances, summarize, sumBy, consumed } from '@/lib/data';
+import { COMPANY, newId, partnerBalances, summarize, sumBy, consumed, categoryOf, myPartnerId } from '@/lib/data';
 import { money, formatDay, formatRange } from '@/lib/format';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import {
-  Screen, Group, Row, Cell, ButtonRow, TextField, Segmented, BigButton, Avatar, FlavorTile,
-  EmptyState, NavButton, ModalSheet, useSticky,
-} from '@/components/ios';
+  Screen, Section, Stack, Card, ListItem, Chips, TextField, Button, IconButton, Avatar, FlavorTile, EmptyState, Sheet, useSticky,
+} from '@/components/kit';
 import { PlacesAutocomplete } from '@/components/places-autocomplete';
-import { OrderListRow, OrderSheet } from '@/components/orders';
+import { OrderCard, OrderSheet } from '@/components/orders';
 
 const back = { label: 'Ajustes', onClick: () => goBack('settings') };
 
 export function SettingsPage() {
   const { partners, settings, archives } = useStore();
   const email = auth.currentUser?.email || '';
+  const me = partners.find(p => p.id === myPartnerId(partners));
+  const name = me?.name || email.split('@')[0];
 
   return (
-    <Screen title="Ajustes">
-      <Group>
-        <Row leading={<Avatar name={email} size={44} />} title={email} subtitle="Administrador" className="py-1" />
-      </Group>
+    <Screen title="Ajustes" actions={<IconButton icon={Pencil} label="Editar socios" onClick={() => navigate('settings/partners')} />}>
+      <div className="flex flex-col items-center pt-2 text-center">
+        <div className="rounded-full bg-white/70 p-2.5 shadow-soft">
+          <Avatar name={name} size={96} className="text-[40px]" />
+        </div>
+        <div className="mt-4 font-display text-[26px] font-bold capitalize leading-tight">{name}</div>
+        <div className="text-[14px] text-muted-foreground">{email}</div>
+      </div>
 
-      <Group header="Negocio">
-        <Row icon={Users} iconColor="#007aff" title="Socios" detail={partners.length || null} chevron onClick={() => navigate('settings/partners')} />
-        <Row icon={MapPin} iconColor="#ff3b30" title="Direcciones de ruta" chevron onClick={() => navigate('settings/addresses')}
-          detail={settings.factoryLat ? null : 'Sin configurar'} />
-      </Group>
+      <Stack>
+        <ListItem icon={Users} tone="sky" title="Socios" chevron onClick={() => navigate('settings/partners')}
+          subtitle={partners.length ? partners.map(p => p.name).join(', ') : 'Quién paga los gastos'} />
+        <ListItem icon={MapPin} tone="blush" title="Direcciones de ruta" chevron onClick={() => navigate('settings/addresses')}
+          subtitle={settings.factoryAddress || 'Configurá la fábrica'} />
+        <ListItem icon={Archive} tone="lilac" title="Historial" chevron onClick={() => navigate('settings/history')}
+          subtitle={archives.length ? `${archives.length} período${archives.length !== 1 ? 's' : ''} cerrado${archives.length !== 1 ? 's' : ''}` : 'Cerrá un período y empezá de cero'} />
+        <ListItem icon={Calculator} tone="mint" title="Recalcular inventario" chevron onClick={() => navigate('settings/inventory')}
+          subtitle="A partir del stock inicial" />
+        <ListItem icon={LogOut} tone="gray" title="Cerrar sesión" danger onClick={() => window.confirm('¿Cerrar sesión?') && signOut(auth)} />
+      </Stack>
 
-      <Group header="Datos">
-        <Row icon={Calculator} iconColor="#34c759" title="Recalcular inventario" chevron onClick={() => navigate('settings/inventory')} />
-        <Row icon={Archive} iconColor="#5856d6" title="Historial" detail={archives.length || null} chevron onClick={() => navigate('settings/history')} />
-      </Group>
-
-      <Group>
-        <ButtonRow destructive center onClick={() => window.confirm('¿Cerrar sesión?') && signOut(auth)}>Cerrar sesión</ButtonRow>
-      </Group>
+      <p className="pb-2 text-center text-[12px] text-muted-foreground">Frizo · hecho con 🥤 en Costa Rica</p>
     </Screen>
   );
 }
@@ -61,21 +65,26 @@ export function PartnersPage() {
   };
 
   return (
-    <Screen title="Socios" back={back} actions={<NavButton icon={Plus} label="Agregar socio" onClick={() => setEditing('new')} />}>
-      <Group footer="Las personas que pagan gastos del negocio. Si el correo coincide con el de su usuario, los gastos que registre quedan a su nombre.">
-        {partners.map(p => (
-          <Row key={p.id} leading={<Avatar name={p.name} />} title={p.name} subtitle={p.email || 'Sin correo'} chevron onClick={() => setEditing(p)} />
-        ))}
-        <ButtonRow icon={Plus} onClick={() => setEditing('new')}>Agregar socio</ButtonRow>
-      </Group>
+    <Screen title="Socios" back={back} actions={<IconButton icon={Plus} label="Agregar socio" dark onClick={() => setEditing('new')} />}>
+      {partners.length === 0 ? (
+        <EmptyState emoji="🤝" title="Sin socios todavía" action={<Button onClick={() => setEditing('new')}><Plus /> Agregar socio</Button>}>
+          Las personas que pagan gastos del negocio.
+        </EmptyState>
+      ) : (
+        <Stack>
+          {partners.map(p => (
+            <ListItem key={p.id} leading={<Avatar name={p.name} />} title={p.name} subtitle={p.email || 'Sin correo'} chevron onClick={() => setEditing(p)} />
+          ))}
+        </Stack>
+      )}
+      <p className="px-1 text-[13px] text-muted-foreground">
+        Si el correo coincide con el del usuario, los gastos que esa persona registre quedan a su nombre.
+      </p>
 
-      <ModalSheet open={!!editing} onOpenChange={v => !v && setEditing(null)}
+      <Sheet open={!!editing} onOpenChange={v => !v && setEditing(null)}
         title={shown === 'new' ? 'Nuevo socio' : 'Editar socio'} confirm={{ label: 'Guardar', form: 'partner-form' }}>
-        {shown && (
-          <PartnerForm partner={shown === 'new' ? null : shown} onSubmit={save}
-            onDelete={shown !== 'new' && (() => remove(shown))} />
-        )}
-      </ModalSheet>
+        {shown && <PartnerForm partner={shown === 'new' ? null : shown} onSubmit={save} onDelete={shown !== 'new' && (() => remove(shown))} />}
+      </Sheet>
     </Screen>
   );
 }
@@ -92,19 +101,37 @@ function PartnerForm({ partner, onSubmit, onDelete }) {
   };
 
   return (
-    <form id="partner-form" onSubmit={submit} className="space-y-6">
-      <div className="flex justify-center pt-2"><Avatar name={name || '?'} size={72} /></div>
-      <Group footer="El correo es opcional.">
-        <TextField placeholder="Nombre" value={name} autoFocus={!partner} onChange={e => { setName(e.target.value); setError(''); }} />
-        <TextField placeholder="Correo" type="email" autoCapitalize="off" value={email} onChange={e => setEmail(e.target.value)} />
-      </Group>
-      {error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
-      {onDelete && <Group><ButtonRow destructive center onClick={onDelete}>Quitar socio</ButtonRow></Group>}
+    <form id="partner-form" onSubmit={submit} className="space-y-4">
+      <div className="flex justify-center py-2"><Avatar name={name || '?'} size={84} className="ring-4 ring-white shadow-soft" /></div>
+      <TextField label="Nombre" placeholder="Ej. Neto" value={name} autoFocus={!partner} onChange={e => { setName(e.target.value); setError(''); }} />
+      <TextField label="Correo (opcional)" placeholder="correo@ejemplo.com" type="email" autoCapitalize="off" value={email} onChange={e => setEmail(e.target.value)} />
+      {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+      {onDelete && <Button type="button" variant="danger" onClick={onDelete}>Quitar socio</Button>}
     </form>
   );
 }
 
 // ─── Direcciones ────────────────────────────────────────────────────────────
+function AddressCard({ title, hint, tone, value, onSelect, onClear }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl" style={{ backgroundColor: tone.bg, color: tone.fg }}>
+          <MapPin className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[16px] font-semibold">{title}</div>
+          <div className={cn('text-[14px]', value ? 'font-medium' : 'text-muted-foreground')}>{value || hint}</div>
+        </div>
+        {value && onClear && <button type="button" onClick={onClear} className="text-[13px] font-semibold text-destructive">Quitar</button>}
+      </div>
+      <div className="mt-3 rounded-2xl bg-muted px-3">
+        <PlacesAutocomplete placeholder={value ? 'Buscar otra dirección' : 'Buscar dirección'} onSelect={onSelect} />
+      </div>
+    </Card>
+  );
+}
+
 export function AddressesPage() {
   const { settings, saveSettings } = useStore();
   const [factory, setFactory] = useState(null);
@@ -125,23 +152,13 @@ export function AddressesPage() {
   };
 
   return (
-    <Screen title="Direcciones" back={back} actions={<NavButton label="Guardar" bold onClick={save} />}>
-      <Group header="Fábrica" footer="Punto de salida de las rutas de entrega.">
-        {factory.address && <Row icon={MapPin} iconColor="#ff3b30" title={factory.address} wrap />}
-        <Cell className="py-1.5">
-          <PlacesAutocomplete placeholder={factory.address ? 'Buscar otra dirección' : 'Buscar dirección'}
-            onSelect={(address, lat, lng) => setFactory({ address, lat, lng })} />
-        </Cell>
-      </Group>
-      <Group header="Regreso" footer="Opcional. Si lo dejás vacío, la ruta termina en la fábrica.">
-        {ret.address && <Row icon={MapPin} iconColor="#ff9500" title={ret.address} wrap />}
-        <Cell className="py-1.5">
-          <PlacesAutocomplete placeholder={ret.address ? 'Buscar otra dirección' : 'Buscar dirección'}
-            onSelect={(address, lat, lng) => setRet({ address, lat, lng })} />
-        </Cell>
-        {ret.address && <ButtonRow destructive onClick={() => setRet({ address: '', lat: null, lng: null })}>Quitar punto de regreso</ButtonRow>}
-      </Group>
-      <BigButton onClick={save}>Guardar</BigButton>
+    <Screen title="Direcciones" back={back}>
+      <AddressCard title="Fábrica" hint="Punto de salida de las rutas" tone={{ bg: '#fde4ee', fg: '#d63d7a' }}
+        value={factory.address} onSelect={(address, lat, lng) => setFactory({ address, lat, lng })} />
+      <AddressCard title="Regreso (opcional)" hint="Si lo dejás vacío, la ruta termina en la fábrica" tone={{ bg: '#ffe9dc', fg: '#d2652a' }}
+        value={ret.address} onSelect={(address, lat, lng) => setRet({ address, lat, lng })}
+        onClear={() => setRet({ address: '', lat: null, lng: null })} />
+      <Button onClick={save}>Guardar direcciones</Button>
     </Screen>
   );
 }
@@ -162,21 +179,34 @@ export function RecalcPage() {
 
   return (
     <Screen title="Recalcular inventario" back={back}>
-      <Group header="Stock inicial" footer="Escribí cuántas bolsas había al empezar el período. Se restan las bolsas de los pedidos actuales (sin contar los cancelados).">
+      <p className="px-1 text-[14px] text-muted-foreground">
+        Escribí cuántas bolsas había al empezar el período. Se restan las de los pedidos actuales (sin contar los cancelados).
+      </p>
+      <Stack>
         {flavors.map(f => (
-          <TextField key={f.id} label={`${f.emoji} ${f.name}`} type="number" inputMode="numeric" align="right" placeholder="0"
-            value={initial[f.id] ?? ''} onChange={e => { setInitial(x => ({ ...x, [f.id]: e.target.value })); setResult(null); }} />
+          <Card key={f.id} className="flex items-center gap-3 p-3 pr-4">
+            <FlavorTile flavor={f} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[16px] font-semibold">{f.name}</div>
+              <div className="text-[13px] text-muted-foreground">{sold(f.id)} vendidas</div>
+            </div>
+            <input type="number" inputMode="numeric" placeholder="0" aria-label={`Stock inicial de ${f.name}`}
+              value={initial[f.id] ?? ''} onChange={e => { setInitial(x => ({ ...x, [f.id]: e.target.value })); setResult(null); }}
+              className="h-11 w-24 rounded-2xl bg-muted px-3 text-right font-display text-[20px] font-bold outline-none focus:ring-2 focus:ring-brand-lime" />
+          </Card>
         ))}
-      </Group>
-      <BigButton onClick={run}>Recalcular y guardar</BigButton>
+      </Stack>
+      <Button onClick={run}>Recalcular y guardar</Button>
       {result && (
-        <Group header="Inventario nuevo">
+        <Card tone="mint" className="space-y-2 p-5">
+          <div className="font-display text-[18px] font-bold">Inventario nuevo</div>
           {flavors.map(f => (
-            <Row key={f.id} leading={<FlavorTile flavor={f} size={32} />} title={f.name}
-              subtitle={`${parseInt(initial[f.id], 10) || 0} iniciales − ${sold(f.id)} vendidas`}
-              detail={result[f.id]} detailClassName="font-semibold text-foreground" />
+            <div key={f.id} className="flex items-center justify-between text-[15px]">
+              <span>{f.emoji} {f.name}</span>
+              <b className="font-display text-[20px] tabular-nums">{result[f.id]}</b>
+            </div>
           ))}
-        </Group>
+        </Card>
       )}
     </Screen>
   );
@@ -186,62 +216,59 @@ export function RecalcPage() {
 export function HistoryPage() {
   const { archives, allOrders, orders, costs, transfers, closePeriod } = useStore();
   const [closing, setClosing] = useState(false);
+  const [label, setLabel] = useState('');
   const periods = [...archives].reverse();
+  const empty = !orders.length && !costs.length && !transfers.length;
+
+  const open = () => { setLabel(archives.length ? '' : 'Antes del relanzamiento'); setClosing(true); };
+  const confirm = () => {
+    const name = label.trim() || `Hasta el ${formatDay(new Date().toISOString())}`;
+    if (!window.confirm(`Se archivan ${orders.length} pedidos, ${costs.length} gastos y ${transfers.length} pagos en "${name}". ¿Continuar?`)) return;
+    closePeriod(name);
+    setClosing(false);
+  };
 
   return (
     <Screen title="Historial" back={back}>
-      {periods.length === 0 ? (
-        <EmptyState icon={Archive} title="Sin períodos cerrados">
-          Cuando cierres un período, sus pedidos, gastos y pagos se guardan acá y la app arranca de cero.
-        </EmptyState>
-      ) : (
-        <Group header="Períodos anteriores">
-          {periods.map(a => (
-            <Row key={a.id} icon={Archive} iconColor="#5856d6" title={a.label} chevron onClick={() => navigate(`settings/history/${a.id}`)}
-              subtitle={`${formatRange(a.startedAt, a.closedAt)} · ${allOrders.filter(o => o.archive === a.id).length} pedidos`} />
+      <div className="grain overflow-hidden rounded-[30px] bg-primary p-5 text-white shadow-float">
+        <div className="text-[13px] font-semibold text-white/60">Período actual</div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[['Pedidos', orders.length], ['Gastos', costs.length], ['Pagos', transfers.length]].map(([l, n]) => (
+            <div key={l} className="rounded-2xl bg-white/10 px-3 py-2.5">
+              <div className="font-display text-[26px] font-bold leading-none text-brand-lime tabular-nums">{n}</div>
+              <div className="mt-1 text-[12px] text-white/60">{l}</div>
+            </div>
           ))}
-        </Group>
-      )}
-
-      <Group header="Período actual"
-        footer="Mueve los pedidos, gastos y pagos actuales al historial. Productos, socios, direcciones e inventario se mantienen, y los saldos arrancan en cero.">
-        <Row title="Pedidos" detail={orders.length} />
-        <Row title="Gastos" detail={costs.length} />
-        <Row title="Pagos" detail={transfers.length} />
-        <ButtonRow destructive disabled={!orders.length && !costs.length && !transfers.length} onClick={() => setClosing(true)}>
-          Cerrar período y empezar de cero…
-        </ButtonRow>
-      </Group>
-
-      <ModalSheet open={closing} onOpenChange={setClosing} title="Cerrar período">
-        <ClosePeriodForm suggested={archives.length ? '' : 'Antes del relanzamiento'}
-          counts={{ orders: orders.length, costs: costs.length, transfers: transfers.length }}
-          onConfirm={label => { closePeriod(label); setClosing(false); }} />
-      </ModalSheet>
-    </Screen>
-  );
-}
-
-function ClosePeriodForm({ suggested, counts, onConfirm }) {
-  const [label, setLabel] = useState(suggested);
-  const confirm = () => {
-    const name = label.trim() || `Hasta el ${formatDay(new Date().toISOString())}`;
-    if (!window.confirm(`Se archivan ${counts.orders} pedidos, ${counts.costs} gastos y ${counts.transfers} pagos en "${name}". ¿Continuar?`)) return;
-    onConfirm(name);
-  };
-  return (
-    <>
-      <div className="flex flex-col items-center px-4 pt-2 text-center">
-        <Archive className="size-12 text-[#5856d6]" strokeWidth={1.5} />
-        <p className="mt-3 text-[15px] text-muted-foreground">
-          {counts.orders} pedidos, {counts.costs} gastos y {counts.transfers} pagos pasan al historial, donde los podés seguir viendo. No se borra nada.
+        </div>
+        <p className="mt-4 text-[13px] leading-snug text-white/70">
+          Al cerrarlo, todo esto pasa al historial y la app arranca de cero. Productos, socios, direcciones e inventario se mantienen.
         </p>
+        <Button variant="lime" className="mt-4" disabled={empty} onClick={open}>Cerrar período y empezar de cero</Button>
       </div>
-      <Group header="Nombre del período">
-        <TextField placeholder="Ej. Antes del relanzamiento" value={label} onChange={e => setLabel(e.target.value)} />
-      </Group>
-      <BigButton variant="destructive" onClick={confirm}>Archivar y empezar de cero</BigButton>
-    </>
+
+      <Section title="Períodos anteriores">
+        {periods.length === 0 ? (
+          <EmptyState emoji="🗂️" title="Nada archivado todavía">Los períodos que cierres van a aparecer acá.</EmptyState>
+        ) : (
+          <Stack>
+            {periods.map(a => (
+              <ListItem key={a.id} icon={Archive} tone="lilac" title={a.label} chevron onClick={() => navigate(`settings/history/${a.id}`)}
+                subtitle={`${formatRange(a.startedAt, a.closedAt)} · ${allOrders.filter(o => o.archive === a.id).length} pedidos`} />
+            ))}
+          </Stack>
+        )}
+      </Section>
+
+      <Sheet open={closing} onOpenChange={setClosing} title="Cerrar período" confirm={{ label: 'Archivar y empezar de cero', onClick: confirm }}>
+        <div className="flex flex-col items-center py-2 text-center">
+          <span className="flex size-16 items-center justify-center rounded-full bg-[#ece7fc] text-3xl">🗂️</span>
+          <p className="mt-3 max-w-xs text-[15px] text-muted-foreground">
+            {orders.length} pedidos, {costs.length} gastos y {transfers.length} pagos pasan al historial, donde los podés seguir viendo. No se borra nada.
+          </p>
+        </div>
+        <TextField label="Nombre del período" placeholder="Ej. Antes del relanzamiento" value={label} onChange={e => setLabel(e.target.value)} />
+      </Sheet>
+    </Screen>
   );
 }
 
@@ -261,42 +288,61 @@ export function PeriodPage({ id }) {
   const nameOf = (pid) => [COMPANY, ...partners].find(p => p.id === pid)?.name || (pid ? 'Socio eliminado' : 'Sin indicar');
 
   return (
-    <Screen title={period.label} subtitle={formatRange(period.startedAt, period.closedAt)} back={histBack}>
-      <Group header="Resumen">
-        <Row title="Pedidos" detail={s.count} />
-        <Row title="Bolsas vendidas" detail={s.bags} />
-        <Row title="Cobrado" detail={money(s.paid)} />
-        <Row title="Gastos" detail={money(s.spent)} />
-        <Row title="Ganancia" detail={money(s.profit)} detailClassName={cn('font-semibold', s.profit >= 0 ? 'text-success' : 'text-destructive')} />
-      </Group>
+    <Screen title={period.label} eyebrow={formatRange(period.startedAt, period.closedAt)} back={histBack}>
+      <div className="grain overflow-hidden rounded-[30px] bg-primary p-5 text-white shadow-float">
+        <div className="text-[13px] font-semibold text-white/60">Ganancia del período</div>
+        <div className="font-display text-[40px] font-bold leading-tight text-brand-lime tabular-nums">{money(s.profit)}</div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {[['Cobrado', money(s.paid)], ['Gastos', money(s.spent)], ['Pedidos', s.count], ['Bolsas', s.bags]].map(([l, v]) => (
+            <div key={l} className="rounded-2xl bg-white/10 px-3.5 py-2.5">
+              <div className="text-[12px] text-white/60">{l}</div>
+              <div className="font-display text-[18px] font-bold tabular-nums">{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {partners.length > 0 && (
-        <Group header="Saldos al cierre">
-          {partners.map(p => {
-            const b = balances[p.id];
-            return (
-              <Row key={p.id} leading={<Avatar name={p.name} size={32} />} title={p.name}
-                subtitle={b > 0.005 ? 'La empresa le debía' : b < -0.005 ? 'Le debía a la empresa' : 'Al día'} detail={money(Math.abs(b))} />
-            );
-          })}
-        </Group>
+        <Section title="Saldos al cierre">
+          <div className="grid grid-cols-2 gap-3">
+            {partners.map(p => {
+              const b = balances[p.id];
+              return (
+                <Card key={p.id} className="p-4">
+                  <Avatar name={p.name} size={36} />
+                  <div className="mt-2 truncate text-[15px] font-semibold">{p.name}</div>
+                  <div className="text-[12px] text-muted-foreground">{b > 0.005 ? 'La empresa le debía' : b < -0.005 ? 'Le debía a la empresa' : 'Al día'}</div>
+                  <div className="font-display text-[20px] font-bold tabular-nums">{money(Math.abs(b))}</div>
+                </Card>
+              );
+            })}
+          </div>
+        </Section>
       )}
 
-      <Segmented value={tab} onChange={setTab} options={[
-        { id: 'orders', label: `Pedidos (${orders.length})` },
-        { id: 'costs', label: `Gastos (${costs.length})` },
-        { id: 'transfers', label: `Pagos (${transfers.length})` },
+      <Chips value={tab} onChange={setTab} options={[
+        { id: 'orders', label: 'Pedidos', count: orders.length },
+        { id: 'costs', label: 'Gastos', count: costs.length },
+        { id: 'transfers', label: 'Pagos', count: transfers.length },
       ]} />
 
       {tab === 'orders' && (orders.length
-        ? <Group>{orders.map(o => <OrderListRow key={o._id} order={o} showStatus onClick={() => setSelected(o)} />)}</Group>
-        : <EmptyState title="Sin pedidos" />)}
+        ? <Stack>{orders.map(o => <OrderCard key={o._id} order={o} onClick={() => setSelected(o)} />)}</Stack>
+        : <EmptyState emoji="📋" title="Sin pedidos" />)}
       {tab === 'costs' && (costs.length
-        ? <Group>{costs.map(c => <Row key={c._id} title={c.description} subtitle={`${c.paidBy ? `Pagó ${nameOf(c.paidBy)}` : 'Sin indicar quién pagó'} · ${formatDay(c.date)}`} detail={money(c.amount)} />)}</Group>
-        : <EmptyState title="Sin gastos" />)}
+        ? <Stack>{costs.map(c => (
+            <ListItem key={c._id} icon={categoryOf(c.category).icon} tone={categoryOf(c.category).tone} title={c.description}
+              subtitle={`${c.paidBy ? `Pagó ${nameOf(c.paidBy)}` : 'Sin indicar quién pagó'} · ${formatDay(c.date)}`}
+              trailing={<span className="shrink-0 font-display text-[17px] font-bold tabular-nums">{money(c.amount)}</span>} />
+          ))}</Stack>
+        : <EmptyState emoji="🧾" title="Sin gastos" />)}
       {tab === 'transfers' && (transfers.length
-        ? <Group>{transfers.map(t => <Row key={t._id} title={`${nameOf(t.from)} → ${nameOf(t.to)}`} subtitle={[t.note, formatDay(t.date)].filter(Boolean).join(' · ')} detail={money(t.amount)} />)}</Group>
-        : <EmptyState title="Sin pagos" />)}
+        ? <Stack>{transfers.map(t => (
+            <ListItem key={t._id} icon={ArrowLeftRight} tone="lilac" title={`${nameOf(t.from)} → ${nameOf(t.to)}`}
+              subtitle={[t.note, formatDay(t.date)].filter(Boolean).join(' · ')}
+              trailing={<span className="shrink-0 font-display text-[17px] font-bold tabular-nums">{money(t.amount)}</span>} />
+          ))}</Stack>
+        : <EmptyState emoji="💸" title="Sin pagos" />)}
 
       <OrderSheet order={selected} onClose={() => setSelected(null)} readOnly />
     </Screen>

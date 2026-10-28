@@ -1,112 +1,66 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter";
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "@fontsource-variable/bricolage-grotesque";
 
-@custom-variant dark (@media (prefers-color-scheme: dark));
-
-/* iOS system colors, tinted with Frizo's greens. Dark mode follows the phone. */
+/* Warm paper background, Frizo greens and pink, pastel tiles. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   --brand-lime: #a0cd32;
   --brand-green: #194b14;
   --brand-pink: #fb329c;
 
-  --background: #f2f2f7;
-  --foreground: #000000;
+  --background: #f6f4ee;
+  --foreground: #14170f;
   --card: #ffffff;
-  --card-elevated: #ffffff;
-  --card-foreground: #000000;
-  --sheet: #f2f2f7;
+  --card-foreground: #14170f;
+  --sheet: #f6f4ee;
   --popover: #ffffff;
-  --popover-foreground: #000000;
-  --primary: #237a1b;
+  --popover-foreground: #14170f;
+  --primary: #194b14;
   --primary-foreground: #ffffff;
-  --secondary: #e9e9ee;
-  --secondary-foreground: #000000;
-  --muted: #e9e9ee;
-  --muted-foreground: #8a8a8e;
-  --accent: #e9e9ee;
-  --accent-foreground: #000000;
-  --destructive: #ff3b30;
-  --success: #34c759;
-  --warning: #ff9500;
-  --border: #d8d8dc;
-  --separator: #c6c6c8;
-  --input: #d1d1d6;
-  --ring: #237a1b;
-  --segment: rgb(118 118 128 / 0.12);
-  --segment-selected: #ffffff;
-  --bar: rgb(249 249 249 / 0.82);
+  --secondary: #efede6;
+  --secondary-foreground: #14170f;
+  --muted: #efede6;
+  --muted-foreground: #8a8c80;
+  --accent: #efede6;
+  --accent-foreground: #14170f;
+  --destructive: #e5484d;
+  --success: #2e9b4f;
+  --warning: #c98a00;
+  --border: #ebe8df;
+  --input: #e4e1d7;
+  --ring: #a0cd32;
 
-  --status-pendiente: #ff9500;
-  --status-preparando: #007aff;
-  --status-entregado: #5856d6;
-  --status-pagado: #34c759;
-  --status-cancelado: #8e8e93;
-
-  --sidebar: #f7f7f9;
-  --sidebar-foreground: #000000;
-  --sidebar-primary: #237a1b;
+  --sidebar: #fbfaf6;
+  --sidebar-foreground: #14170f;
+  --sidebar-primary: #194b14;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9e9ee;
-  --sidebar-accent-foreground: #000000;
-  --sidebar-border: #d8d8dc;
-  --sidebar-ring: #237a1b;
+  --sidebar-accent: #efede6;
+  --sidebar-accent-foreground: #14170f;
+  --sidebar-border: #ebe8df;
+  --sidebar-ring: #a0cd32;
 
   --radius: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #ffffff;
-    --card: #1c1c1e;
-    --card-elevated: #2c2c2e;
-    --card-foreground: #ffffff;
-    --sheet: #1c1c1e;
-    --popover: #2c2c2e;
-    --popover-foreground: #ffffff;
-    --primary: #a0cd32;
-    --primary-foreground: #0f2a0c;
-    --secondary: #2c2c2e;
-    --secondary-foreground: #ffffff;
-    --muted: #2c2c2e;
-    --muted-foreground: #8d8d93;
-    --accent: #2c2c2e;
-    --accent-foreground: #ffffff;
-    --destructive: #ff453a;
-    --success: #30d158;
-    --warning: #ff9f0a;
-    --border: #38383a;
-    --separator: #38383a;
-    --input: #3a3a3c;
-    --ring: #a0cd32;
-    --segment: rgb(118 118 128 / 0.24);
-    --segment-selected: #636366;
-    --bar: rgb(22 22 23 / 0.82);
+@theme {
+  --shadow-soft: 0 1px 2px rgb(20 23 15 / 0.04), 0 8px 24px rgb(20 23 15 / 0.05);
+  --shadow-float: 0 2px 6px rgb(20 23 15 / 0.06), 0 18px 40px rgb(20 23 15 / 0.14);
+  --animate-rise: rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
-    --status-pendiente: #ff9f0a;
-    --status-preparando: #0a84ff;
-    --status-entregado: #5e5ce6;
-    --status-pagado: #30d158;
-    --status-cancelado: #8d8d93;
-
-    --sidebar: #1c1c1e;
-    --sidebar-foreground: #ffffff;
-    --sidebar-primary: #a0cd32;
-    --sidebar-primary-foreground: #0f2a0c;
-    --sidebar-accent: #2c2c2e;
-    --sidebar-accent-foreground: #ffffff;
-    --sidebar-border: #38383a;
-    --sidebar-ring: #a0cd32;
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
   }
 }
 
 @theme inline {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter Variable', 'Segoe UI', Roboto, sans-serif;
-  --font-heading: var(--font-sans);
+  --font-sans: 'Plus Jakarta Sans Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', sans-serif;
+  --font-heading: var(--font-display);
 
   --color-brand-lime: var(--brand-lime);
   --color-brand-green: var(--brand-green);
@@ -130,17 +84,8 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-border: var(--border);
-  --color-separator: var(--separator);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-segment: var(--segment);
-  --color-segment-selected: var(--segment-selected);
-  --color-bar: var(--bar);
-  --color-status-pendiente: var(--status-pendiente);
-  --color-status-preparando: var(--status-preparando);
-  --color-status-entregado: var(--status-entregado);
-  --color-status-pagado: var(--status-pagado);
-  --color-status-cancelado: var(--status-cancelado);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -169,7 +114,12 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
+    background:
+      radial-gradient(900px 420px at 50% -160px, rgb(160 205 50 / 0.22), transparent 70%),
+      radial-gradient(600px 300px at 100% 0, rgb(251 50 156 / 0.06), transparent 70%),
+      var(--background);
+    background-attachment: fixed;
   }
   button {
     cursor: pointer;
@@ -185,12 +135,42 @@
   }
 }
 
+/* Screen content rises in, one block after another. */
+.stagger > * { animation: var(--animate-rise); }
+.stagger > *:nth-child(2) { animation-delay: 50ms; }
+.stagger > *:nth-child(3) { animation-delay: 100ms; }
+.stagger > *:nth-child(4) { animation-delay: 150ms; }
+.stagger > *:nth-child(5) { animation-delay: 200ms; }
+.stagger > *:nth-child(6) { animation-delay: 250ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 300ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger > * { animation: none; }
+}
+
+/* Film grain over brand surfaces, like the Frizo artwork. */
+.grain { position: relative; isolation: isolate; }
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 .places-autocomplete-wrap gmp-place-autocomplete {
   width: 100%;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 .places-autocomplete-wrap gmp-place-autocomplete::part(input) {
   font-family: var(--font-sans);
-  font-size: 17px;
+  font-size: 16px;
 }

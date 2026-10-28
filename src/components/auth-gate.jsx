@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/firebase';
-import { Group, TextField, BigButton } from '@/components/ios';
+import { TextField, Button } from '@/components/kit';
 import logo from '@/assets/frizo-logo.svg';
 
 const ERRORS = {
@@ -42,20 +42,19 @@ function LoginForm() {
 	};
 
 	return (
-		<div className="flex min-h-svh flex-col items-center justify-center px-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-			<form onSubmit={handleSubmit} className="w-full max-w-sm space-y-6">
-				<div className="flex flex-col items-center pb-4 text-center">
-					<img src={logo} alt="Frizo" className="h-10 w-auto dark:brightness-0 dark:invert" />
-					<p className="mt-4 text-[15px] text-muted-foreground">Pedidos, inventario y gastos</p>
-				</div>
-				<Group>
-					<TextField type="email" autoComplete="email" autoCapitalize="off" placeholder="Correo" value={email} onChange={e => setEmail(e.target.value)} required />
-					<TextField type="password" autoComplete="current-password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)} required />
-				</Group>
-				{error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
-				{info && <p className="px-4 text-[15px] text-muted-foreground">{info}</p>}
-				<BigButton type="submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</BigButton>
-				<button type="button" onClick={handleReset} className="w-full text-[15px] text-primary">
+		<div className="flex min-h-svh flex-col px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">
+			<div className="grain relative flex flex-1 flex-col justify-end overflow-hidden rounded-[36px] bg-brand-lime p-7 text-brand-green">
+				<span className="pointer-events-none absolute -right-6 top-6 rotate-12 text-[150px] leading-none drop-shadow-2xl">🥤</span>
+				<img src={logo} alt="Frizo" className="h-11 w-auto self-start" />
+				<p className="mt-3 max-w-60 font-display text-[22px] font-bold leading-tight">Pedidos, inventario y gastos, en un solo lugar.</p>
+			</div>
+			<form onSubmit={handleSubmit} className="mx-auto mt-5 w-full max-w-sm space-y-3">
+				<TextField label="Correo" type="email" autoComplete="email" autoCapitalize="off" placeholder="tu@correo.com" value={email} onChange={e => setEmail(e.target.value)} required />
+				<TextField label="Contraseña" type="password" autoComplete="current-password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+				{error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+				{info && <p className="px-1 text-[14px] text-muted-foreground">{info}</p>}
+				<Button type="submit" disabled={busy} className="mt-2">{busy ? 'Entrando…' : 'Entrar'}</Button>
+				<button type="button" onClick={handleReset} className="w-full py-2 text-[14px] font-semibold text-primary">
 					¿Olvidaste tu contraseña?
 				</button>
 			</form>

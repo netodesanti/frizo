@@ -1,15 +1,15 @@
 import { useMemo, useRef, useState } from 'react';
 import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { Camera, Plus, Rocket } from 'lucide-react';
+import { ArrowDown, ArrowUp, Camera, Plus, Rocket } from 'lucide-react';
 import { db, storage } from '@/firebase';
 import { useStore } from '@/lib/store';
 import { money } from '@/lib/format';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import {
-  Screen, Group, Row, ButtonRow, TextField, Stepper, Switch, FlavorTile, NavButton, BigButton,
-} from '@/components/ios';
+  Screen, Section, Stack, Card, ListItem, TextField, Stepper, Toggle, FlavorTile, Tag, IconButton, Button,
+} from '@/components/kit';
 
 // Vercel deploy hook of the public website; rebuilds it with the latest products.
 const WEB_DEPLOY_HOOK = import.meta.env.VITE_WEB_DEPLOY_HOOK;
@@ -19,6 +19,7 @@ const EMPTY = { name: '', emoji: '🥤', color: '#5cb85c', price: 1600, descript
 const slugify = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'producto';
 
+// Big tappable number; typing a value replaces the count.
 function StockCount({ value, onCommit }) {
   const [draft, setDraft] = useState(null);
   const commit = () => {
@@ -26,9 +27,9 @@ function StockCount({ value, onCommit }) {
     setDraft(null);
   };
   return (
-    <input type="number" inputMode="numeric" value={draft ?? value}
+    <input type="number" inputMode="numeric" aria-label="Bolsas en stock" value={draft ?? value}
       onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
-      className={cn('w-14 bg-transparent text-right text-[17px] font-semibold tabular-nums outline-none', value <= 0 && 'text-destructive')} />
+      className={cn('w-full bg-transparent font-display text-[40px] font-bold leading-none tracking-tight tabular-nums outline-none', value <= 0 && 'text-destructive')} />
   );
 }
 
@@ -48,29 +49,48 @@ export function ProductsPage() {
   };
 
   return (
-    <Screen title="Productos" actions={<NavButton icon={Plus} label="Nuevo producto" onClick={() => navigate('products/new')} />}>
-      <Group header="Inventario" footer="Se descuenta solo al crear pedidos y vuelve si se cancelan o eliminan.">
-        {flavors.map(f => (
-          <Row key={f.id} leading={<FlavorTile flavor={f} />} title={f.name} subtitle="bolsas en stock">
-            <StockCount value={stock[f.id] || 0} onCommit={n => setStockCount(f.id, n)} />
-            <Stepper value={stock[f.id] || 0} min={-Infinity} onChange={v => bumpStockCount(f.id, v - (stock[f.id] || 0))} />
-          </Row>
-        ))}
-      </Group>
+    <Screen title="Productos" eyebrow={`${flavors.reduce((s, f) => s + (stock[f.id] || 0), 0)} bolsas en stock`}
+      actions={<IconButton icon={Plus} label="Nuevo producto" dark onClick={() => navigate('products/new')} />}>
+      <Section title="Inventario">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {flavors.map(f => {
+            const n = stock[f.id] || 0;
+            return (
+              <Card key={f.id} className="flex flex-col p-4" style={{ background: `linear-gradient(180deg, ${f.color}1c, #fff 70%)` }}>
+                <div className="flex items-start justify-between">
+                  <FlavorTile flavor={f} size={48} />
+                  {n <= 3 && <Tag tone="blush">{n <= 0 ? 'Agotado' : 'Poco'}</Tag>}
+                </div>
+                <div className="mt-3 truncate text-[14px] font-semibold">{f.name}</div>
+                <StockCount value={n} onCommit={v => setStockCount(f.id, v)} />
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-[12px] text-muted-foreground">bolsas</span>
+                  <Stepper value={n} min={-Infinity} showValue={false} onChange={v => bumpStockCount(f.id, v - n)} />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+        <p className="px-1 text-[13px] text-muted-foreground">Se descuenta solo al crear pedidos y vuelve si se cancelan o eliminan.</p>
+      </Section>
 
-      <Group header="Catálogo" footer="Lo que se muestra en el sitio web y en los pedidos.">
-        {list.map(p => (
-          <Row key={p.id} leading={<FlavorTile flavor={p} />} title={p.name} chevron onClick={() => navigate(`products/${p.id}`)}
-            subtitle={`${money(p.price)} · ${p.active ? 'Visible en el sitio' : 'Oculto del sitio'}`}
-            className={cn(!p.active && 'opacity-60')} />
-        ))}
-        <ButtonRow icon={Plus} onClick={() => navigate('products/new')}>Nuevo producto</ButtonRow>
-      </Group>
+      <Section title="Catálogo">
+        <Stack>
+          {list.map(p => (
+            <ListItem key={p.id} leading={<FlavorTile flavor={p} size={52} />} title={p.name} subtitle={p.description || 'Sin descripción'}
+              meta={<><Tag tone="lime">{money(p.price)}</Tag><Tag tone={p.active ? 'mint' : 'gray'}>{p.active ? 'En el sitio' : 'Oculto'}</Tag></>}
+              chevron onClick={() => navigate(`products/${p.id}`)} />
+          ))}
+          <button type="button" onClick={() => navigate('products/new')}
+            className="flex w-full items-center justify-center gap-2 rounded-[22px] border-2 border-dashed border-input py-4 text-[15px] font-semibold text-muted-foreground transition-transform active:scale-[0.98]">
+            <Plus className="size-5" /> Nuevo producto
+          </button>
+        </Stack>
+      </Section>
 
       {WEB_DEPLOY_HOOK && (
-        <Group footer={publish || 'Después de cambiar productos, publicá para actualizar el sitio web.'}>
-          <ButtonRow icon={Rocket} onClick={publishSite}>Publicar cambios en el sitio</ButtonRow>
-        </Group>
+        <ListItem icon={Rocket} tone="lilac" title="Publicar cambios en el sitio" subtitle={publish || 'Actualiza el sitio web con estos productos'}
+          chevron onClick={publishSite} />
       )}
     </Screen>
   );
@@ -81,9 +101,8 @@ export function ProductPage({ id }) {
   const list = products || [];
   const index = list.findIndex(p => p.id === id);
   const product = index >= 0 ? list[index] : null;
-  const isNew = id === 'new';
 
-  if (!isNew && !product) {
+  if (id !== 'new' && !product) {
     return <Screen title="Producto" back={{ label: 'Productos', onClick: () => goBack('products') }} />;
   }
   return <ProductEditor key={id} product={product} index={index} products={list} />;
@@ -149,56 +168,49 @@ function ProductEditor({ product, index, products }) {
   };
 
   return (
-    <Screen title={product ? product.name : 'Nuevo producto'} back={{ label: 'Productos', onClick: () => goBack('products') }}
-      actions={<NavButton label={busy ? 'Guardando…' : 'Guardar'} bold type="submit" form="product-form" disabled={busy} />}>
-      <form id="product-form" onSubmit={handleSave} className="space-y-7">
-        <div className="flex flex-col items-center gap-3">
-          <button type="button" onClick={() => fileRef.current.click()}
-            className="relative flex size-28 items-center justify-center overflow-hidden rounded-3xl text-5xl"
-            style={{ backgroundColor: `${form.color}26` }}>
-            {preview ? <img src={preview} alt="" className="size-full object-cover" /> : form.emoji}
-            <span className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur">
-              <Camera className="size-4" />
-            </span>
-          </button>
-          <button type="button" onClick={() => fileRef.current.click()} className="text-[15px] text-primary">
-            {preview ? 'Cambiar foto' : 'Agregar foto'}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
-        </div>
+    <Screen title={product ? product.name : 'Nuevo producto'} back={{ label: 'Productos', onClick: () => goBack('products') }}>
+      <form onSubmit={handleSave} className="space-y-5">
+        <button type="button" onClick={() => fileRef.current.click()}
+          className="relative flex h-56 w-full items-center justify-center overflow-hidden rounded-[30px] text-[96px] transition-transform active:scale-[0.99]"
+          style={{ background: `radial-gradient(circle at 50% 40%, ${form.color}40, ${form.color}14 70%)` }}>
+          {preview ? <img src={preview} alt="" className="size-full object-cover" /> : <span className="drop-shadow-xl">{form.emoji || '🥤'}</span>}
+          <span className="absolute bottom-3 right-3 flex h-10 items-center gap-2 rounded-full bg-white/90 px-4 text-[14px] font-semibold shadow-soft backdrop-blur">
+            <Camera className="size-4" /> {preview ? 'Cambiar foto' : 'Agregar foto'}
+          </span>
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => setFile(e.target.files[0] || null)} />
 
-        <Group>
-          <TextField label="Nombre" align="right" placeholder="Batido Verde" value={form.name} onChange={set('name')} />
-          <TextField label="Precio ₡" align="right" type="number" inputMode="numeric" value={form.price} onChange={set('price')} />
-          <TextField label="Emoji" align="right" value={form.emoji} onChange={set('emoji')} />
-          <Row title="Color">
+        <TextField label="Nombre" placeholder="Batido Verde" value={form.name} onChange={set('name')} />
+        <div className="grid grid-cols-3 gap-2.5">
+          <TextField label="Precio ₡" type="number" inputMode="numeric" value={form.price} onChange={set('price')} />
+          <TextField label="Emoji" value={form.emoji} onChange={set('emoji')} />
+          <label className="block rounded-[20px] bg-card px-4 py-3 shadow-soft">
+            <span className="block text-[12px] font-semibold text-muted-foreground">Color</span>
             <input type="color" value={form.color} onChange={set('color')}
-              className="h-8 w-12 cursor-pointer rounded-md border-0 bg-transparent p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0" />
-          </Row>
-        </Group>
+              className="mt-0.5 h-7 w-full cursor-pointer rounded-full border-0 bg-transparent p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0" />
+          </label>
+        </div>
+        <TextField label="Descripción" multiline placeholder="Cómo se describe en el sitio web" value={form.description} onChange={set('description')} />
+        <TextField label="Ingredientes (separados por coma)" multiline placeholder="Espinaca, piña, jengibre" value={form.ingredients} onChange={set('ingredients')} />
 
-        <Group header="Descripción">
-          <TextField multiline placeholder="Cómo se describe en el sitio web" value={form.description} onChange={set('description')} />
-        </Group>
-        <Group header="Ingredientes" footer="Separados por coma.">
-          <TextField multiline placeholder="Espinaca, piña, jengibre" value={form.ingredients} onChange={set('ingredients')} />
-        </Group>
-
-        <Group>
-          <Row title="Visible en el sitio web">
-            <Switch checked={form.active} onChange={v => setForm(f => ({ ...f, active: v }))} />
-          </Row>
-        </Group>
+        <Card className="flex items-center gap-3 px-4 py-3.5">
+          <div className="flex-1">
+            <div className="text-[16px] font-semibold">Visible en el sitio web</div>
+            <div className="text-[13px] text-muted-foreground">Si lo apagás, sigue disponible para pedidos</div>
+          </div>
+          <Toggle checked={form.active} onChange={v => setForm(f => ({ ...f, active: v }))} />
+        </Card>
 
         {product && (
-          <Group header="Orden en el sitio">
-            <ButtonRow disabled={index === 0} onClick={() => move(-1)}>Mover arriba</ButtonRow>
-            <ButtonRow disabled={index === products.length - 1} onClick={() => move(1)}>Mover abajo</ButtonRow>
-          </Group>
+          <Card className="flex items-center gap-3 px-4 py-3">
+            <div className="flex-1 text-[16px] font-semibold">Orden en el sitio</div>
+            <IconButton icon={ArrowUp} label="Mover arriba" disabled={index === 0} onClick={() => move(-1)} className="size-10 bg-muted shadow-none" />
+            <IconButton icon={ArrowDown} label="Mover abajo" disabled={index === products.length - 1} onClick={() => move(1)} className="size-10 bg-muted shadow-none" />
+          </Card>
         )}
 
-        {error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
-        <BigButton type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</BigButton>
+        {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+        <Button type="submit" disabled={busy}>{busy ? 'Guardando…' : 'Guardar producto'}</Button>
       </form>
     </Screen>
   );

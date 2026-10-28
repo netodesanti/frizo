@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeftRight, Plus, Wallet } from 'lucide-react';
+import { ArrowLeftRight, ChevronRight, Plus, Sparkles, Users } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import {
   COMPANY, COST_CATEGORIES, categoryOf, partnerBalances, partnerFlows, settleUp, myPartnerId, sumBy,
@@ -8,13 +8,13 @@ import { money, todayISO, formatDay, monthOf } from '@/lib/format';
 import { navigate } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import {
-  Screen, Group, Row, Cell, ButtonRow, TextField, DateRow, Segmented, AmountField, BigButton,
-  IconTile, Avatar, EmptyState, NavButton, ModalSheet, useSticky,
-} from '@/components/ios';
+  TONES, Screen, Section, Stack, Card, ListItem, ToneIcon, Chips, Avatar, IconButton, PillButton, Button,
+  TextField, DateField, AmountField, EmptyState, Sheet, useSticky,
+} from '@/components/kit';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const balanceLabel = (b) => (b > 0.005 ? 'La empresa le debe' : b < -0.005 ? 'Le debe a la empresa' : 'Al día');
-const balanceColor = (b) => (b > 0.005 ? 'text-success' : b < -0.005 ? 'text-destructive' : undefined);
+const balanceColor = (b) => (b > 0.005 ? 'text-success' : b < -0.005 ? 'text-destructive' : 'text-foreground/40');
 
 export function CostsPage({ sub }) {
   const store = useStore();
@@ -26,7 +26,7 @@ export function CostsPage({ sub }) {
   const balanceSheet = useSticky(sheet?.kind === 'balance' ? sheet : null);
   const close = () => setSheet(null);
 
-  // "costs/new" (from Inicio) opens the new-expense sheet.
+  // "costs/new" (from Resumen) opens the new-expense sheet.
   useEffect(() => {
     if (sub === 'new') { setSheet({ kind: 'cost' }); navigate('costs', { replace: true }); }
   }, [sub]);
@@ -35,6 +35,11 @@ export function CostsPage({ sub }) {
   const nameOf = (id) => payers.find(p => p.id === id)?.name || (id ? 'Socio eliminado' : 'Sin indicar');
   const balances = partnerBalances(partners, costs, transfers);
   const settlements = partners.length > 1 ? settleUp(partners, balances) : [];
+  const total = sumBy(costs, c => c.amount);
+  const byCategory = COST_CATEGORIES
+    .map(c => ({ ...c, total: sumBy(costs.filter(x => categoryOf(x.category).id === c.id), x => x.amount) }))
+    .filter(c => c.total > 0)
+    .sort((a, b) => b.total - a.total);
 
   const feed = [
     ...costs.map(c => ({ kind: 'cost', item: c })),
@@ -60,61 +65,106 @@ export function CostsPage({ sub }) {
   };
 
   return (
-    <Screen title="Gastos" subtitle={`${money(sumBy(costs, c => c.amount))} gastados en total`}
-      actions={<NavButton icon={Plus} label="Nuevo gasto" onClick={() => setSheet({ kind: 'cost' })} />}>
+    <Screen title="Gastos" eyebrow={`${money(total)} gastados`}
+      actions={<IconButton icon={Plus} label="Nuevo gasto" dark onClick={() => setSheet({ kind: 'cost' })} />}>
 
       {partners.length === 0 ? (
-        <Group header="Saldos" footer="Agregá a los socios para registrar quién pagó cada gasto y ver cuánto se le debe a cada uno.">
-          <ButtonRow onClick={() => navigate('settings/partners')}>Agregar socios</ButtonRow>
-        </Group>
+        <ListItem icon={Users} tone="sky" title="Agregá a los socios" subtitle="Para saber quién pagó qué y cuánto se le debe a cada uno"
+          chevron onClick={() => navigate('settings/partners')} />
       ) : (
-        <Group header="Saldos"
-          footer={settlements.length > 0 && `Si se reparten los gastos en partes iguales: ${settlements.map(s => `${s.from.name} le debe ${money(s.amount)} a ${s.to.name}`).join('; ')}.`}>
-          {partners.map(p => (
-            <Row key={p.id} leading={<Avatar name={p.name} />} title={p.name} subtitle={balanceLabel(balances[p.id])}
-              detail={money(Math.abs(balances[p.id]))} detailClassName={cn('font-semibold', balanceColor(balances[p.id]))}
-              chevron onClick={() => setSheet({ kind: 'balance', item: p })} />
-          ))}
-          <ButtonRow icon={ArrowLeftRight} onClick={() => setSheet({ kind: 'payment' })}>Registrar pago o reembolso</ButtonRow>
-        </Group>
+        <Section title="Saldos">
+          <div className="grid grid-cols-2 gap-3">
+            {partners.map(p => {
+              const b = balances[p.id];
+              return (
+                <Card key={p.id} onClick={() => setSheet({ kind: 'balance', item: p })} className="flex flex-col p-4">
+                  <div className="flex items-center justify-between">
+                    <Avatar name={p.name} size={40} />
+                    <span className="flex size-7 items-center justify-center rounded-full border-[1.5px] border-foreground/80">
+                      <ChevronRight className="size-4" strokeWidth={2.5} />
+                    </span>
+                  </div>
+                  <div className="mt-3 truncate text-[15px] font-semibold">{p.name}</div>
+                  <div className="text-[12px] text-muted-foreground">{balanceLabel(b)}</div>
+                  <div className={cn('mt-1 truncate font-display text-[26px] font-bold leading-tight tabular-nums', balanceColor(b))}>{money(Math.abs(b))}</div>
+                </Card>
+              );
+            })}
+          </div>
+          {partners.length > 1 && (
+            <Card tone="lilac" className="flex items-center gap-3 p-4">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white/70" style={{ color: TONES.lilac.fg }}>
+                {settlements.length ? <ArrowLeftRight className="size-5" /> : <Sparkles className="size-5" />}
+              </span>
+              <div className="min-w-0 flex-1 text-[14px]">
+                {settlements.length
+                  ? settlements.map((s, i) => <div key={i}><b>{s.from.name}</b> le debe <b>{money(s.amount)}</b> a <b>{s.to.name}</b></div>)
+                  : <b>Están parejos</b>}
+                <div className="text-[12px] text-foreground/55">Repartiendo los gastos en partes iguales</div>
+              </div>
+              <PillButton onClick={() => setSheet({ kind: 'payment', preset: settlements[0] && { from: settlements[0].from.id, to: settlements[0].to.id, amount: settlements[0].amount } })}>
+                Pagar
+              </PillButton>
+            </Card>
+          )}
+        </Section>
+      )}
+
+      {byCategory.length > 0 && (
+        <Card className="space-y-4 p-5">
+          <div className="flex items-baseline justify-between">
+            <span className="font-display text-[18px] font-bold">En qué se va la plata</span>
+            <span className="font-display text-[18px] font-bold tabular-nums">{money(total)}</span>
+          </div>
+          <div className="flex h-3 gap-1 overflow-hidden rounded-full">
+            {byCategory.map(c => <span key={c.id} className="h-full rounded-full" style={{ width: `${(c.total / total) * 100}%`, backgroundColor: TONES[c.tone].fg }} />)}
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {byCategory.map(c => (
+              <span key={c.id} className="flex items-center gap-1.5 text-[13px]">
+                <span className="size-2.5 rounded-full" style={{ backgroundColor: TONES[c.tone].fg }} />
+                <span className="font-medium">{c.label}</span>
+                <span className="text-muted-foreground tabular-nums">{Math.round((c.total / total) * 100)}%</span>
+              </span>
+            ))}
+          </div>
+        </Card>
       )}
 
       {partners.length > 0 && (costs.length > 0 || transfers.length > 0) && (
-        <Segmented value={filter} onChange={setFilter}
+        <Chips value={filter} onChange={setFilter}
           options={[{ id: 'all', label: 'Todo' }, ...partners.map(p => ({ id: p.id, label: p.name })), { id: COMPANY.id, label: COMPANY.name }]} />
       )}
 
       {months.length === 0 ? (
-        <EmptyState icon={Wallet} title={filter === 'all' ? 'Sin gastos todavía' : 'Nada con este filtro'}
-          action={filter === 'all' && <BigButton onClick={() => setSheet({ kind: 'cost' })}><Plus /> Agregar gasto</BigButton>}>
+        <EmptyState emoji="🧾" title={filter === 'all' ? 'Sin gastos todavía' : 'Nada con este filtro'}
+          action={filter === 'all' && <Button onClick={() => setSheet({ kind: 'cost' })}><Plus /> Agregar gasto</Button>}>
           {filter === 'all' && 'Registrá cada compra y quién la pagó; los saldos se calculan solos.'}
         </EmptyState>
       ) : months.map(({ month, entries }) => (
-        <Group key={month} header={
-          <span className="flex justify-between">
-            <span>{month}</span>
-            <span className="tabular-nums">{money(sumBy(entries.filter(e => e.kind === 'cost'), e => e.item.amount))}</span>
-          </span>
-        }>
-          {entries.map(({ kind, item }) => kind === 'cost' ? (
-            <Row key={item._id} leading={<IconTile icon={categoryOf(item.category).icon} color={categoryOf(item.category).color} size={32} />}
-              title={item.description}
-              subtitle={<span className={cn(!item.paidBy && 'text-warning')}>{item.paidBy ? `Pagó ${nameOf(item.paidBy)}` : 'Sin indicar quién pagó'} · {formatDay(item.date)}</span>}
-              detail={money(item.amount)} detailClassName="text-foreground"
-              onClick={() => setSheet({ kind: 'cost', item })} />
-          ) : (
-            <Row key={item._id} leading={<IconTile icon={ArrowLeftRight} color="#5856d6" size={32} />}
-              title={`${nameOf(item.from)} → ${nameOf(item.to)}`}
-              subtitle={[item.note, formatDay(item.date)].filter(Boolean).join(' · ')}
-              detail={money(item.amount)}
-              onClick={() => setSheet({ kind: 'payment', item })} />
-          ))}
-        </Group>
+        <Section key={month} title={month}
+          action={<span className="text-[14px] font-semibold text-muted-foreground tabular-nums">{money(sumBy(entries.filter(e => e.kind === 'cost'), e => e.item.amount))}</span>}>
+          <Stack>
+            {entries.map(({ kind, item }) => kind === 'cost' ? (
+              <ListItem key={item._id} icon={categoryOf(item.category).icon} tone={categoryOf(item.category).tone}
+                title={item.description}
+                subtitle={<span className={cn(!item.paidBy && 'font-semibold text-warning')}>{item.paidBy ? `Pagó ${nameOf(item.paidBy)}` : 'Sin indicar quién pagó'} · {formatDay(item.date)}</span>}
+                trailing={<span className="shrink-0 font-display text-[17px] font-bold tabular-nums">{money(item.amount)}</span>}
+                onClick={() => setSheet({ kind: 'cost', item })} />
+            ) : (
+              <ListItem key={item._id} icon={ArrowLeftRight} tone="lilac"
+                title={`${nameOf(item.from)} → ${nameOf(item.to)}`}
+                subtitle={[item.note, formatDay(item.date)].filter(Boolean).join(' · ')}
+                trailing={<span className="shrink-0 font-display text-[17px] font-bold tabular-nums text-muted-foreground">{money(item.amount)}</span>}
+                onClick={() => setSheet({ kind: 'payment', item })} />
+            ))}
+          </Stack>
+        </Section>
       ))}
 
-      <ModalSheet open={sheet?.kind === 'cost'} onOpenChange={v => !v && close()}
+      <Sheet open={sheet?.kind === 'cost'} onOpenChange={v => !v && close()}
         title={costSheet?.item ? 'Editar gasto' : 'Nuevo gasto'}
-        confirm={{ label: costSheet?.item ? 'Guardar' : 'Agregar', form: 'cost-form' }}>
+        confirm={{ label: costSheet?.item ? 'Guardar cambios' : 'Agregar gasto', form: 'cost-form' }}>
         {costSheet && (
           <CostForm cost={costSheet.item} payers={payers} partners={partners}
             onDelete={costSheet.item && (() => removeCost(costSheet.item))}
@@ -124,11 +174,11 @@ export function CostsPage({ sub }) {
               close();
             }} />
         )}
-      </ModalSheet>
+      </Sheet>
 
-      <ModalSheet open={sheet?.kind === 'payment'} onOpenChange={v => !v && close()}
+      <Sheet open={sheet?.kind === 'payment'} onOpenChange={v => !v && close()}
         title={paymentSheet?.item ? 'Editar pago' : 'Registrar pago'}
-        confirm={{ label: 'Guardar', form: 'payment-form' }}>
+        confirm={{ label: 'Guardar pago', form: 'payment-form' }}>
         {paymentSheet && (
           <PaymentForm transfer={paymentSheet.item} preset={paymentSheet.preset} payers={payers} partners={partners} nameOf={nameOf}
             onDelete={paymentSheet.item && (() => removePayment(paymentSheet.item))}
@@ -138,18 +188,21 @@ export function CostsPage({ sub }) {
               close();
             }} />
         )}
-      </ModalSheet>
+      </Sheet>
 
-      <ModalSheet open={sheet?.kind === 'balance'} onOpenChange={v => !v && close()}
-        title={balanceSheet?.item.name} cancel={null} confirm={{ label: 'Listo', onClick: close }}>
+      <Sheet open={sheet?.kind === 'balance'} onOpenChange={v => !v && close()} title={balanceSheet?.item.name}>
         {balanceSheet && (
           <BalanceDetail partner={balanceSheet.item} balance={balances[balanceSheet.item.id] || 0}
             flows={partnerFlows(balanceSheet.item.id, costs, transfers)}
             onSettle={preset => setSheet({ kind: 'payment', preset })} />
         )}
-      </ModalSheet>
+      </Sheet>
     </Screen>
   );
+}
+
+function FieldLabel({ children }) {
+  return <div className="px-1 pb-2 text-[13px] font-semibold text-muted-foreground">{children}</div>;
 }
 
 function CostForm({ cost, payers, partners, onSubmit, onDelete }) {
@@ -170,33 +223,31 @@ function CostForm({ cost, payers, partners, onSubmit, onDelete }) {
   };
 
   return (
-    <form id="cost-form" onSubmit={submit} className="space-y-6">
+    <form id="cost-form" onSubmit={submit} className="space-y-5">
       <AmountField value={amount} onChange={v => { setAmount(v); setError(''); }} autoFocus={!cost} />
-      <Group>
-        <TextField placeholder="¿En qué se gastó?" value={description} onChange={e => { setDescription(e.target.value); setError(''); }} />
-      </Group>
-      <Group header="¿Quién pagó?" footer={payers.length === 1 && 'Agregá socios en Ajustes para indicar quién pagó cada gasto.'}>
-        <Cell className="py-2.5">
-          <Segmented value={paidBy} onChange={setPaidBy} options={payers.map(p => ({ id: p.id, label: p.name }))} />
-        </Cell>
-      </Group>
-      <Group header="Categoría">
-        <Cell className="py-3">
-          <div className="grid grid-cols-3 gap-2">
-            {COST_CATEGORIES.map(c => (
-              <button key={c.id} type="button" onClick={() => setCategory(c.id)}
-                className={cn('flex flex-col items-center gap-1.5 rounded-xl py-2.5 text-[13px] font-medium transition-colors',
-                  category === c.id ? 'bg-primary/12 text-primary ring-2 ring-primary' : 'bg-segment')}>
-                <IconTile icon={c.icon} color={c.color} size={28} />
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </Cell>
-      </Group>
-      <Group><DateRow label="Fecha" value={date} onChange={setDate} /></Group>
-      {error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
-      {onDelete && <Group><ButtonRow destructive center onClick={onDelete}>Eliminar gasto</ButtonRow></Group>}
+      <TextField label="Descripción" placeholder="¿En qué se gastó?" value={description} onChange={e => { setDescription(e.target.value); setError(''); }} />
+      <div>
+        <FieldLabel>¿Quién pagó?</FieldLabel>
+        <Chips value={paidBy} onChange={setPaidBy} options={payers.map(p => ({ id: p.id, label: p.name }))} className="-mx-5 px-5" />
+        {payers.length === 1 && <p className="px-1 pt-2 text-[12px] text-muted-foreground">Agregá socios en Ajustes para indicar quién pagó.</p>}
+      </div>
+      <div>
+        <FieldLabel>Categoría</FieldLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {COST_CATEGORIES.map(c => (
+            <button key={c.id} type="button" onClick={() => setCategory(c.id)}
+              className={cn('flex flex-col items-center gap-1.5 rounded-[20px] py-3 text-[13px] font-semibold transition-all duration-150 active:scale-95',
+                category === c.id ? 'ring-2 ring-primary' : '')}
+              style={{ backgroundColor: TONES[c.tone].bg, color: category === c.id ? TONES[c.tone].fg : undefined }}>
+              <c.icon className="size-6" style={{ color: TONES[c.tone].fg }} />
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <DateField label="Fecha" value={date} onChange={setDate} />
+      {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+      {onDelete && <Button type="button" variant="danger" onClick={onDelete}>Eliminar gasto</Button>}
     </form>
   );
 }
@@ -219,26 +270,29 @@ function PaymentForm({ transfer, preset, payers, partners, nameOf, onSubmit, onD
   };
 
   return (
-    <form id="payment-form" onSubmit={submit} className="space-y-6">
+    <form id="payment-form" onSubmit={submit} className="space-y-5">
       <AmountField value={amount} onChange={v => { setAmount(v); setError(''); }} autoFocus={!transfer && !preset} />
-      <Group header="Pagó">
-        <Cell className="py-2.5"><Segmented value={from} onChange={v => { setFrom(v); setError(''); }} options={options} /></Cell>
-      </Group>
-      <Group header="Recibió"
-        footer={from !== to && (
-          <>
-            {nameOf(from)} le pagó {money(amt)} a {nameOf(to)}.
-            {from === COMPANY.id && ' Usalo para reembolsos o para la plata de ventas que se queda un socio.'}
-          </>
-        )}>
-        <Cell className="py-2.5"><Segmented value={to} onChange={v => { setTo(v); setError(''); }} options={options} /></Cell>
-      </Group>
-      <Group>
-        <TextField placeholder="Nota (opcional)" value={note} onChange={e => setNote(e.target.value)} />
-        <DateRow label="Fecha" value={date} onChange={setDate} />
-      </Group>
-      {error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
-      {onDelete && <Group><ButtonRow destructive center onClick={onDelete}>Eliminar pago</ButtonRow></Group>}
+      <div>
+        <FieldLabel>Pagó</FieldLabel>
+        <Chips value={from} onChange={v => { setFrom(v); setError(''); }} options={options} className="-mx-5 px-5" />
+      </div>
+      <div>
+        <FieldLabel>Recibió</FieldLabel>
+        <Chips value={to} onChange={v => { setTo(v); setError(''); }} options={options} className="-mx-5 px-5" />
+      </div>
+      {from !== to && (
+        <Card tone="lilac" className="flex items-center gap-3 p-4 text-[14px]">
+          <ToneIcon icon={ArrowLeftRight} tone="lilac" size={36} />
+          <div>
+            <b>{nameOf(from)}</b> le pagó <b>{money(amt)}</b> a <b>{nameOf(to)}</b>.
+            {from === COMPANY.id && <div className="text-[12px] text-foreground/55">Para reembolsos o plata de ventas que se queda un socio.</div>}
+          </div>
+        </Card>
+      )}
+      <TextField label="Nota" placeholder="Opcional, ej. SINPE" value={note} onChange={e => setNote(e.target.value)} />
+      <DateField label="Fecha" value={date} onChange={setDate} />
+      {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+      {onDelete && <Button type="button" variant="danger" onClick={onDelete}>Eliminar pago</Button>}
     </form>
   );
 }
@@ -246,25 +300,22 @@ function PaymentForm({ transfer, preset, payers, partners, nameOf, onSubmit, onD
 function BalanceDetail({ partner, balance, flows, onSettle }) {
   return (
     <>
-      <div className="flex flex-col items-center pt-2 text-center">
-        <Avatar name={partner.name} size={64} />
-        <div className="mt-3 text-[15px] text-muted-foreground">{balanceLabel(balance)}</div>
-        <div className={cn('text-[44px] font-bold leading-tight tabular-nums tracking-tight', balanceColor(balance))}>{money(Math.abs(balance))}</div>
+      <div className="flex flex-col items-center pt-1 text-center">
+        <Avatar name={partner.name} size={76} className="ring-4 ring-white shadow-soft" />
+        <div className="mt-3 text-[14px] font-medium text-muted-foreground">{balanceLabel(balance)}</div>
+        <div className={cn('font-display text-[48px] font-bold leading-tight tracking-tight tabular-nums', balanceColor(balance))}>{money(Math.abs(balance))}</div>
       </div>
-      <Group footer="El saldo es lo que pagó de su bolsillo más los pagos que hizo, menos los pagos que recibió.">
-        <Row title="Gastos que pagó" detail={money(flows.paidCosts)} />
-        <Row title="Pagos que hizo" detail={money(flows.sent)} />
-        <Row title="Pagos que recibió" detail={`− ${money(flows.received)}`} />
-      </Group>
+      <Stack>
+        <ListItem icon={Plus} tone="mint" title="Gastos que pagó" trailing={<b className="font-display text-[17px]">{money(flows.paidCosts)}</b>} />
+        <ListItem icon={ArrowLeftRight} tone="sky" title="Pagos que hizo" trailing={<b className="font-display text-[17px]">{money(flows.sent)}</b>} />
+        <ListItem icon={ArrowLeftRight} tone="blush" title="Pagos que recibió" trailing={<b className="font-display text-[17px]">− {money(flows.received)}</b>} />
+      </Stack>
+      <p className="px-1 text-[13px] text-muted-foreground">El saldo es lo que pagó de su bolsillo más los pagos que hizo, menos los pagos que recibió.</p>
       {balance > 0.005 && (
-        <BigButton onClick={() => onSettle({ from: COMPANY.id, to: partner.id, amount: balance })}>
-          Registrar reembolso de {money(balance)}
-        </BigButton>
+        <Button onClick={() => onSettle({ from: COMPANY.id, to: partner.id, amount: balance })}>Registrar reembolso de {money(balance)}</Button>
       )}
       {balance < -0.005 && (
-        <BigButton onClick={() => onSettle({ from: partner.id, to: COMPANY.id, amount: -balance })}>
-          Registrar devolución de {money(-balance)}
-        </BigButton>
+        <Button onClick={() => onSettle({ from: partner.id, to: COMPANY.id, amount: -balance })}>Registrar devolución de {money(-balance)}</Button>
       )}
     </>
   );

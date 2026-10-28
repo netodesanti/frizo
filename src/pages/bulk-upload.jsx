@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { FileSpreadsheet, MinusCircle } from 'lucide-react';
+import { FileSpreadsheet, X } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { BASE_FLAVORS, DEFAULT_PRICE, newId } from '@/lib/data';
 import { money } from '@/lib/format';
 import { navigate, goBack } from '@/lib/nav';
-import { Screen, Group, Row, BigButton } from '@/components/ios';
+import { Screen, Section, Stack, ListItem, Avatar, Button } from '@/components/kit';
+import { FlavorTag } from '@/components/orders';
 
 const COLUMN_MAP = {
   'nombre': 'customer', 'batido verde': 'verde', 'antioxidante': 'antioxidante',
@@ -67,29 +68,38 @@ export function BulkUploadPage() {
 
   return (
     <Screen title="Importar pedidos" back={{ label: 'Pedidos', onClick: () => goBack('orders') }}>
-      <Group footer={<>Columnas: <b>Nombre</b>, <b>Batido Verde</b>, <b>Antioxidante</b>, <b>Boost Inmune</b>. Opcionales: <b>Ubicación</b>, <b>Notas</b>.</>}>
-        <Row icon={FileSpreadsheet} iconColor="#34c759" title={fileName || 'Elegir archivo de Excel'} subtitle={fileName ? 'Tocá para elegir otro' : '.xlsx o .xls'}
+      <div className="space-y-2">
+        <ListItem icon={FileSpreadsheet} tone="mint" title={fileName || 'Elegir archivo de Excel'} subtitle={fileName ? 'Tocá para elegir otro' : '.xlsx o .xls'}
           chevron onClick={() => fileRef.current.click()} />
-      </Group>
+        <p className="px-2 text-[13px] text-muted-foreground">
+          Columnas: <b>Nombre</b>, <b>Batido Verde</b>, <b>Antioxidante</b>, <b>Boost Inmune</b>. Opcionales: <b>Ubicación</b>, <b>Notas</b>.
+        </p>
+      </div>
       <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
 
-      {error && <p className="px-4 text-[15px] text-destructive">{error}</p>}
+      {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
 
       {rows.length > 0 && (
-        <>
-          <Group header={`${rows.length} pedido${rows.length !== 1 ? 's' : ''} · ${totalBags} bolsas`}
-            footer={short.length > 0 && <span className="text-destructive">El stock quedará en negativo para {short.map(f => f.name).join(', ')}.</span>}>
+        <Section title={`${rows.length} pedido${rows.length !== 1 ? 's' : ''} · ${totalBags} bolsas`}>
+          {short.length > 0 && (
+            <p className="rounded-2xl bg-destructive/10 px-4 py-3 text-[14px] font-medium text-destructive">
+              El stock quedará en negativo para {short.map(f => f.name).join(', ')}.
+            </p>
+          )}
+          <Stack>
             {rows.map((r, i) => (
-              <Row key={i} title={r.customer}
-                subtitle={[BASE_FLAVORS.filter(f => r.quantities[f.id]).map(f => `${f.emoji} ${r.quantities[f.id]}`).join('  '), r.location].filter(Boolean).join(' · ')}>
-                <button type="button" aria-label={`Quitar ${r.customer}`} onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}>
-                  <MinusCircle className="size-[22px] fill-destructive text-white" />
-                </button>
-              </Row>
+              <ListItem key={i} leading={<Avatar name={r.customer} />} title={r.customer} subtitle={r.location || 'Sin dirección'}
+                meta={BASE_FLAVORS.filter(f => r.quantities[f.id]).map(f => <FlavorTag key={f.id} flavor={f} qty={r.quantities[f.id]} />)}
+                trailing={
+                  <button type="button" aria-label={`Quitar ${r.customer}`} onClick={() => setRows(prev => prev.filter((_, j) => j !== i))}
+                    className="flex size-8 items-center justify-center rounded-full bg-muted">
+                    <X className="size-4" strokeWidth={2.5} />
+                  </button>
+                } />
             ))}
-          </Group>
-          <BigButton onClick={submit}>Crear {rows.length} pedido{rows.length !== 1 ? 's' : ''} · {money(totalBags * DEFAULT_PRICE)}</BigButton>
-        </>
+          </Stack>
+          <Button onClick={submit}>Crear {rows.length} pedido{rows.length !== 1 ? 's' : ''} · {money(totalBags * DEFAULT_PRICE)}</Button>
+        </Section>
       )}
     </Screen>
   );

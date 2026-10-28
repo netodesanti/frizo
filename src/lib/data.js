@@ -21,12 +21,12 @@ export const statusOf = (id) => STATUSES.find(s => s.id === (id || 'pendiente'))
 export const NEXT_STATUS = { pendiente: 'preparando', preparando: 'entregado', entregado: 'pagado' };
 
 export const COST_CATEGORIES = [
-  { id: 'ingredientes', label: 'Ingredientes', icon: Apple,     color: '#34c759' },
-  { id: 'empaque',      label: 'Empaque',      icon: Package,   color: '#ff9500' },
-  { id: 'transporte',   label: 'Transporte',   icon: Car,       color: '#007aff' },
-  { id: 'marketing',    label: 'Marketing',    icon: Megaphone, color: '#ff2d55' },
-  { id: 'equipo',       label: 'Equipo',       icon: Wrench,    color: '#8e8e93' },
-  { id: 'otros',        label: 'Otros',        icon: Tag,       color: '#af52de' },
+  { id: 'ingredientes', label: 'Ingredientes', icon: Apple,     tone: 'mint' },
+  { id: 'empaque',      label: 'Empaque',      icon: Package,   tone: 'peach' },
+  { id: 'transporte',   label: 'Transporte',   icon: Car,       tone: 'sky' },
+  { id: 'marketing',    label: 'Marketing',    icon: Megaphone, tone: 'blush' },
+  { id: 'equipo',       label: 'Equipo',       icon: Wrench,    tone: 'gray' },
+  { id: 'otros',        label: 'Otros',        icon: Tag,       tone: 'lilac' },
 ];
 export const categoryOf = (id) => COST_CATEGORIES.find(c => c.id === id) || COST_CATEGORIES[5];
 

@@ -1,15 +1,7 @@
-import {
-	Sidebar,
-	SidebarContent,
-	SidebarFooter,
-	SidebarHeader,
-	SidebarMenu,
-	SidebarMenuButton,
-	SidebarMenuItem,
-	SidebarGroup,
-} from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
 import { Route } from 'lucide-react';
 import { navigate } from '@/lib/nav';
+import { cn } from '@/lib/utils';
 import { TABS } from '@/components/tab-bar';
 import logo from '@/assets/frizo-logo.svg';
 
@@ -19,28 +11,30 @@ export function AppSidebar({ tab, route, totalStock }) {
 	const isActive = (key) => key.includes('/') ? route.startsWith(key) : tab === key && !items.some(i => i.key.includes('/') && route.startsWith(i.key));
 
 	return (
-		<Sidebar collapsible="none" className="h-svh w-60 border-r border-sidebar-border">
-			<SidebarHeader className="px-4 pb-2 pt-5">
-				<img src={logo} alt="Frizo" className="h-7 w-auto self-start object-contain dark:brightness-0 dark:invert" />
+		<Sidebar collapsible="none" className="h-svh w-64 bg-transparent">
+			<SidebarHeader className="px-6 pb-4 pt-7">
+				<img src={logo} alt="Frizo" className="h-7 w-auto self-start object-contain" />
 			</SidebarHeader>
-			<SidebarContent>
-				<SidebarGroup>
-					<SidebarMenu className="gap-0.5">
-						{items.map(item => (
-							<SidebarMenuItem key={item.key}>
-								<SidebarMenuButton isActive={isActive(item.key)} onClick={() => navigate(item.key)}
-									className="h-9 rounded-lg text-[15px] data-[active=true]:bg-primary/12 data-[active=true]:font-semibold data-[active=true]:text-primary">
-									<item.icon className="size-[18px]" />
-									<span>{item.label}</span>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						))}
-					</SidebarMenu>
-				</SidebarGroup>
+			<SidebarContent className="px-4">
+				<nav className="space-y-1">
+					{items.map(item => {
+						const active = isActive(item.key);
+						return (
+							<button key={item.key} onClick={() => navigate(item.key)}
+								className={cn('flex h-12 w-full items-center gap-3 rounded-full px-4 text-[15px] font-semibold transition-colors',
+									active ? 'bg-primary text-white shadow-float' : 'text-foreground/70 hover:bg-white/70')}>
+								<item.icon className={cn('size-5', active && 'text-brand-lime')} />
+								{item.label}
+							</button>
+						);
+					})}
+				</nav>
 			</SidebarContent>
-			<SidebarFooter className="px-4 pb-5">
-				<div className="text-[13px] text-muted-foreground">En stock</div>
-				<div className="text-[22px] font-bold tabular-nums">{totalStock} bolsas</div>
+			<SidebarFooter className="p-4">
+				<div className="grain overflow-hidden rounded-[24px] bg-brand-lime p-4 text-brand-green">
+					<div className="text-[13px] font-semibold opacity-75">En stock</div>
+					<div className="font-display text-[30px] font-bold leading-tight tabular-nums">{totalStock} <span className="text-[15px]">bolsas</span></div>
+				</div>
 			</SidebarFooter>
 		</Sidebar>
 	);
