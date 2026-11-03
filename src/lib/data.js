@@ -43,7 +43,7 @@ export const DEFAULT_LOCATION_PRICE = 1200;
 // Everything in the `movements` collection that isn't a sale. Which way the bags
 // move is in MOVE_SIGNS (lib/ledger.js).
 const MOVEMENT_LOOK = {
-  restock: { label: 'Reposición',        icon: PackagePlus,       tone: 'mint' },
+  restock: { label: 'Bolsas agregadas',  icon: PackagePlus,       tone: 'mint' },
   return:  { label: 'Devuelto al stock', icon: Undo2,             tone: 'lilac' },
   loss:    { label: 'Pérdida',           icon: PackageMinus,      tone: 'blush' },
   adjust:  { label: 'Ajuste por conteo', icon: ClipboardCheck,    tone: 'sky' },

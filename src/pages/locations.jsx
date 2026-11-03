@@ -95,12 +95,12 @@ function LocationForm({ loc, onSubmit, onDelete }) {
 
 // ─── Point of sale ──────────────────────────────────────────────────────────
 const ACTIONS = [
-  { id: 'restock', label: 'Reponer', hint: 'Del stock general', icon: PackagePlus, tone: 'mint' },
+  { id: 'restock', label: 'Agregar', hint: 'Del stock general', icon: PackagePlus, tone: 'mint' },
   { id: 'count', label: 'Contar', hint: 'Lo que falta se vendió', icon: ClipboardCheck, tone: 'sky' },
   { id: 'sale', label: 'Venta', hint: 'Registrar una venta', icon: ShoppingBag, tone: 'butter' },
   { id: 'remove', label: 'Retirar', hint: 'Devolver o pérdida', icon: PackageMinus, tone: 'peach' },
 ];
-const TITLES = { restock: 'Reponer', count: 'Contar el congelador', sale: 'Registrar venta', remove: 'Retirar bolsas', pay: 'Registrar pago' };
+const TITLES = { restock: 'Agregar bolsas', count: 'Contar el congelador', sale: 'Registrar venta', remove: 'Retirar bolsas', pay: 'Registrar pago' };
 
 export function LocationPage({ id }) {
   const { locations, orders, movements, flavors, deleteOrder, deleteMovement } = useStore();
@@ -180,7 +180,7 @@ export function LocationPage({ id }) {
 
       <Section title="Movimientos">
         {feed.length === 0 ? (
-          <EmptyState emoji="🧊" title="Sin movimientos">Empezá reponiendo bolsas desde el stock general.</EmptyState>
+          <EmptyState emoji="🧊" title="Sin movimientos">Empezá agregando bolsas desde el stock general.</EmptyState>
         ) : (
           <Stack>
             {feed.map(e => <FeedItem key={e.item._id} entry={e} onClick={() => undo(e)} />)}
@@ -232,7 +232,7 @@ function FeedItem({ entry: { kind, item }, onClick }) {
   );
 }
 
-// Reponer, Venta, Retirar: pick bags per flavor.
+// Agregar, Venta, Retirar: pick bags per flavor.
 function MoveForm({ mode, loc, onDone }) {
   const { flavors, stock, addMovement, placeOrder } = useStore();
   const [quantities, setQuantities] = useState({});
