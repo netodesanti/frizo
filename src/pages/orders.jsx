@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FileSpreadsheet, Plus, Route } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { newId, statusOf } from '@/lib/data';
+import { newId, statusOf, isLocationSale } from '@/lib/data';
 import { navigate, goBack } from '@/lib/nav';
 import { Screen, Section, Stack, IconButton, Chips, SearchField, EmptyState, Button } from '@/components/kit';
 import { OrderForm, OrderCard, OrderSheet } from '@/components/orders';
@@ -14,7 +14,7 @@ const FILTERS = [
 ];
 
 export function OrdersPage() {
-  const { orders } = useStore();
+  const orders = useStore().orders.filter(o => !isLocationSale(o));
   const [filter, setFilter] = useState('active');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);

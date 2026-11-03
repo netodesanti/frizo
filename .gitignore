@@ -3,3 +3,6 @@ build
 dist
 .env
 .vercel
+
+# Firebase emulators
+*-debug.log

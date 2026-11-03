@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { Check, Factory, Navigation } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { STATUSES } from '@/lib/data';
+import { STATUSES, isLocationSale } from '@/lib/data';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { Screen, Section, Stack, Card, ListItem, Chips, Button, Avatar, LinkButton } from '@/components/kit';
@@ -10,7 +10,8 @@ import { Screen, Section, Stack, Card, ListItem, Chips, Button, Avatar, LinkButt
 const point = (lat, lng) => `${lat},${lng}`;
 
 export function RoutesPage() {
-  const { orders, settings } = useStore();
+  const { settings } = useStore();
+  const orders = useStore().orders.filter(o => !isLocationSale(o));
   const [statusFilter, setStatusFilter] = useState(['pendiente', 'preparando']);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [directions, setDirections] = useState(null);

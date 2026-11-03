@@ -3,7 +3,7 @@ import { signOut } from 'firebase/auth';
 import { Archive, ArrowLeftRight, Calculator, LogOut, MapPin, Pencil, Plus, Users } from 'lucide-react';
 import { auth } from '@/firebase';
 import { useStore } from '@/lib/store';
-import { COMPANY, newId, partnerBalances, summarize, sumBy, consumed, categoryOf, myPartnerId } from '@/lib/data';
+import { COMPANY, newId, partnerBalances, summarize, sumBy, consumed, categoryOf, myPartnerId, isLocationSale, movementOf } from '@/lib/data';
 import { money, formatDay, formatRange } from '@/lib/format';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
@@ -165,13 +165,16 @@ export function AddressesPage() {
 
 // ─── Recalcular inventario ──────────────────────────────────────────────────
 export function RecalcPage() {
-  const { flavors, orders, replaceStock } = useStore();
+  const { flavors, orders, movements, replaceStock } = useStore();
   const [initial, setInitial] = useState({});
   const [result, setResult] = useState(null);
-  const sold = (id) => sumBy(orders, o => consumed(o)[id]);
+  // Point-of-sale sales come out of that location, not the general stock.
+  const sold = (id) => sumBy(orders.filter(o => !isLocationSale(o)), o => consumed(o)[id]);
+  // Bags sent to points of sale (minus the ones brought back). Hand edits are what's being redone, so they don't count.
+  const placed = (id) => -sumBy(movements.filter(m => m.type !== 'manual'), m => movementOf(m.type).general * (m.quantities?.[id] || 0));
 
   const run = () => {
-    const next = Object.fromEntries(flavors.map(f => [f.id, (parseInt(initial[f.id], 10) || 0) - sold(f.id)]));
+    const next = Object.fromEntries(flavors.map(f => [f.id, (parseInt(initial[f.id], 10) || 0) - sold(f.id) - placed(f.id)]));
     if (!window.confirm('Esto reemplaza el inventario actual. ¿Continuar?')) return;
     replaceStock(next);
     setResult(next);
@@ -180,7 +183,7 @@ export function RecalcPage() {
   return (
     <Screen title="Recalcular inventario" back={back}>
       <p className="px-1 text-[14px] text-muted-foreground">
-        Escribí cuántas bolsas había al empezar el período. Se restan las de los pedidos actuales (sin contar los cancelados).
+        Escribí cuántas bolsas había al empezar el período. Se restan las de los pedidos actuales (sin contar los cancelados) y las que están en puntos de venta.
       </p>
       <Stack>
         {flavors.map(f => (
@@ -188,7 +191,7 @@ export function RecalcPage() {
             <FlavorTile flavor={f} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[16px] font-semibold">{f.name}</div>
-              <div className="text-[13px] text-muted-foreground">{sold(f.id)} vendidas</div>
+              <div className="text-[13px] text-muted-foreground">{sold(f.id)} vendidas{placed(f.id) ? ` · ${placed(f.id)} en puntos de venta` : ''}</div>
             </div>
             <input type="number" inputMode="numeric" placeholder="0" aria-label={`Stock inicial de ${f.name}`}
               value={initial[f.id] ?? ''} onChange={e => { setInitial(x => ({ ...x, [f.id]: e.target.value })); setResult(null); }}

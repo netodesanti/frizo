@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { ArrowDown, ArrowUp, Camera, Plus, Rocket } from 'lucide-react';
+import { ArrowDown, ArrowUp, Camera, History, Plus, Rocket } from 'lucide-react';
 import { db, storage } from '@/firebase';
 import { useStore } from '@/lib/store';
 import { money } from '@/lib/format';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
+import { LocationsSection } from '@/pages/locations';
 import {
   Screen, Section, Stack, Card, ListItem, TextField, Stepper, Toggle, FlavorTile, Tag, IconButton, Button,
 } from '@/components/kit';
@@ -51,7 +52,11 @@ export function ProductsPage() {
   return (
     <Screen title="Productos" eyebrow={`${flavors.reduce((s, f) => s + (stock[f.id] || 0), 0)} bolsas en stock`}
       actions={<IconButton icon={Plus} label="Nuevo producto" dark onClick={() => navigate('products/new')} />}>
-      <Section title="Inventario">
+      <Section title="Inventario" action={
+        <button type="button" onClick={() => navigate('products/history')} className="flex items-center gap-1 text-[14px] font-semibold text-primary">
+          <History className="size-4" /> Historial
+        </button>
+      }>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {flavors.map(f => {
             const n = stock[f.id] || 0;
@@ -71,8 +76,10 @@ export function ProductsPage() {
             );
           })}
         </div>
-        <p className="px-1 text-[13px] text-muted-foreground">Se descuenta solo al crear pedidos y vuelve si se cancelan o eliminan.</p>
+        <p className="px-1 text-[13px] text-muted-foreground">Stock general: lo que tenés para vender. Se descuenta solo al crear pedidos y vuelve si se cancelan o eliminan.</p>
       </Section>
+
+      <LocationsSection />
 
       <Section title="Catálogo">
         <Stack>

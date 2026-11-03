@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, HandCoins, PlusCircle, ShoppingBag, Truck, Wallet } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { summarize, partnerBalances, myPartnerId, orderTotal, sumBy } from '@/lib/data';
+import { summarize, partnerBalances, myPartnerId, orderTotal, owedOf, sumBy } from '@/lib/data';
 import { money } from '@/lib/format';
 import { navigate } from '@/lib/nav';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import {
   Screen, Section, Stack, Card, ListItem, StatTile, Chips, Avatar, FlavorTile, Tag, PillButton, LinkButton, EmptyState, useCountUp,
 } from '@/components/kit';
 import { OrderCard, OrderSheet } from '@/components/orders';
+import { LocationRow, ReceivablesSheet } from '@/pages/locations';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 const RANGES = [
@@ -81,10 +82,11 @@ function CountTile({ value, format = (v) => Math.round(v), ...props }) {
 }
 
 export function DashboardPage() {
-  const { orders, costs, transfers, partners, stock, flavors } = useStore();
+  const { orders, costs, transfers, partners, stock, flavors, locations } = useStore();
   const [range, setRange] = useState('month');
   const [queue, setQueue] = useState('pendiente');
   const [selected, setSelected] = useState(null);
+  const [receivables, setReceivables] = useState(false);
 
   const start = startOf(range);
   const rangeOrders = start ? orders.filter(o => new Date(o.date) >= start) : orders;
@@ -93,7 +95,7 @@ export function DashboardPage() {
   const rangeLabel = RANGES.find(r => r.id === range).label;
 
   const open = orders.filter(o => ['pendiente', 'preparando'].includes(o.status || 'pendiente'));
-  const unpaid = orders.filter(o => !['pagado', 'cancelado'].includes(o.status));
+  const unpaid = orders.filter(o => owedOf(o) > 0);
   const queued = orders.filter(o => (o.status || 'pendiente') === queue);
   const balances = partnerBalances(partners, costs, transfers);
   const me = partners.find(p => p.id === myPartnerId(partners));
@@ -111,8 +113,8 @@ export function DashboardPage() {
         <Hero summary={summary} rangeLabel={rangeLabel} week={lastWeek(orders)} />
         <div className="grid grid-cols-2 gap-3">
           <CountTile icon={Truck} tone="butter" label="Por entregar" value={open.length} unit="pedidos" onClick={() => navigate('orders')} />
-          <CountTile icon={HandCoins} tone="blush" label="Por cobrar" value={sumBy(unpaid, orderTotal)} format={v => money(Math.round(v))}
-            unit={`${unpaid.length} pedido${unpaid.length !== 1 ? 's' : ''}`} onClick={() => navigate('orders')} />
+          <CountTile icon={HandCoins} tone="blush" label="Por cobrar" value={sumBy(unpaid, owedOf)} format={v => money(Math.round(v))}
+            unit={`${unpaid.length} venta${unpaid.length !== 1 ? 's' : ''}`} onClick={() => setReceivables(true)} />
           <CountTile icon={ShoppingBag} tone="mint" label="Vendidas" value={summary.bags} unit={`bolsas · ${rangeLabel.toLowerCase()}`} />
           <Card onClick={() => navigate('orders/new')} className="grain relative flex min-h-40 flex-col overflow-hidden bg-brand-lime p-4 text-brand-green shadow-none">
             <PlusCircle className="size-7" strokeWidth={2.2} />
@@ -150,6 +152,7 @@ export function DashboardPage() {
                 );
               })}
             </div>
+            {locations.length > 0 && <Stack>{locations.map(l => <LocationRow key={l._id} loc={l} />)}</Stack>}
           </Section>
 
           {partners.length > 0 && (
@@ -175,6 +178,7 @@ export function DashboardPage() {
       </div>
 
       <OrderSheet order={selected} onClose={() => setSelected(null)} />
+      <ReceivablesSheet open={receivables} onClose={() => setReceivables(false)} />
     </Screen>
   );
 }

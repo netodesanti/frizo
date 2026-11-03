@@ -11,6 +11,7 @@ import { BulkUploadPage } from '@/pages/bulk-upload';
 import { RoutesPage } from '@/pages/routes';
 import { CostsPage } from '@/pages/costs';
 import { ProductsPage, ProductPage } from '@/pages/products';
+import { LocationPage, InventoryHistoryPage } from '@/pages/locations';
 import { SettingsPage, PartnersPage, AddressesPage, RecalcPage, HistoryPage, PeriodPage } from '@/pages/settings';
 import logo from '@/assets/frizo-logo.svg';
 
@@ -23,7 +24,10 @@ function Screens({ route }) {
       if (sub === 'routes') return <RoutesPage />;
       return <OrdersPage />;
     case 'costs': return <CostsPage sub={sub} />;
-    case 'products': return sub ? <ProductPage id={sub} /> : <ProductsPage />;
+    case 'products':
+      if (sub === 'locations' && id) return <LocationPage id={id} />;
+      if (sub === 'history') return <InventoryHistoryPage />;
+      return sub ? <ProductPage id={sub} /> : <ProductsPage />;
     case 'settings':
       if (sub === 'partners') return <PartnersPage />;
       if (sub === 'addresses') return <AddressesPage />;

@@ -1,5 +1,8 @@
-import { Apple, Package, Car, Megaphone, Wrench, Tag } from 'lucide-react';
+import { Apple, Package, Car, Megaphone, Wrench, Tag, PackagePlus, Undo2, PackageMinus, ClipboardCheck, SlidersHorizontal, HandCoins } from 'lucide-react';
 import { auth } from '@/firebase';
+import { MOVE_SIGNS } from '@/lib/ledger';
+
+export * from '@/lib/ledger';
 
 // Fallback until the `products` collection loads (and for the fixed Excel columns).
 export const BASE_FLAVORS = [
@@ -8,7 +11,6 @@ export const BASE_FLAVORS = [
   { id: 'boost',        name: 'Boost Inmune',  emoji: '🧡', color: '#f39c12' },
 ];
 
-export const DEFAULT_PRICE = 1600;
 
 export const STATUSES = [
   { id: 'pendiente',  label: 'Pendiente' },
@@ -32,35 +34,31 @@ export const categoryOf = (id) => COST_CATEGORIES.find(c => c.id === id) || COST
 
 export const COMPANY = { id: 'empresa', name: 'Empresa' };
 
+// ─── Points of sale ─────────────────────────────────────────────────────────
+// A point of sale (e.g. a freezer at a company) holds its own bags, still ours
+// until someone buys them. Its sales are orders tagged with `locationId`; they
+// take bags from that location instead of the general stock.
+export const DEFAULT_LOCATION_PRICE = 1200;
+
+// Everything in the `movements` collection that isn't a sale. Which way the bags
+// move is in MOVE_SIGNS (lib/ledger.js).
+const MOVEMENT_LOOK = {
+  restock: { label: 'Reposición',        icon: PackagePlus,       tone: 'mint' },
+  return:  { label: 'Devuelto al stock', icon: Undo2,             tone: 'lilac' },
+  loss:    { label: 'Pérdida',           icon: PackageMinus,      tone: 'blush' },
+  adjust:  { label: 'Ajuste por conteo', icon: ClipboardCheck,    tone: 'sky' },
+  manual:  { label: 'Ajuste manual',     icon: SlidersHorizontal, tone: 'gray' },
+  payment: { label: 'Pago recibido',     icon: HandCoins,         tone: 'mint' },
+};
+export const MOVEMENTS = Object.fromEntries(Object.entries(MOVEMENT_LOOK).map(([k, v]) => [k, { ...v, ...MOVE_SIGNS[k] }]));
+export const movementOf = (type) => MOVEMENTS[type] || MOVEMENTS.adjust;
+
+// Sales made at a point of sale (they take bags from there, not the general stock).
+export const isLocationSale = (o) => !!o.locationId;
+
 export const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-export const sumBy = (list, fn) => list.reduce((s, x) => s + (Number(fn(x)) || 0), 0);
-export const sumQty = (q) => Object.values(q || {}).reduce((s, v) => s + (Number(v) || 0), 0);
-// Returns a + sign * b for every key in either quantity map.
-export const addQty = (a, b, sign = 1) => {
-  const out = { ...a };
-  for (const k of Object.keys(b || {})) out[k] = (out[k] || 0) + sign * (b[k] || 0);
-  return out;
-};
-
-// Bags an order takes out of stock. Cancelled orders give theirs back.
-export const consumed = (o) => (o.status === 'cancelado' ? {} : o.quantities || {});
-export const orderTotal = (o) => o.totalPrice || (o.totalBags || 0) * DEFAULT_PRICE;
 export const flavorOf = (flavors, id) => flavors.find(f => f.id === id) || { id, name: id, emoji: '🥤', color: '#8e8e93' };
-
-export function summarize(orders, costs) {
-  const live = orders.filter(o => o.status !== 'cancelado');
-  const paid = sumBy(live.filter(o => o.status === 'pagado'), orderTotal);
-  const spent = sumBy(costs, c => c.amount);
-  return {
-    count: live.length,
-    bags: sumBy(live, o => o.totalBags),
-    paid,
-    pending: sumBy(live.filter(o => o.status !== 'pagado'), orderTotal),
-    spent,
-    profit: paid - spent,
-  };
-}
 
 // Positive: the company owes that partner. Negative: the partner holds company money.
 // An expense paid by a partner counts as money they put in; a transfer moves it
