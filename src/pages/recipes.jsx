@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, Carrot, ChevronDown, Eraser, Plus, Trash2, X } from 'lucide-react';
+import { Archive, Carrot, Eraser, Plus, Trash2, X } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,7 @@ const uniqueId = (name, taken) => {
 export function RecipesPage() {
   const { recipes, ingredients } = useStore();
   const [counts, setCounts] = useState(loadBatch);
-  const [showOld, setShowOld] = useState(false);
+  const [tab, setTab] = useState('activa');
   const setCount = (id, n) => setCounts(c => {
     const next = { ...c, [id]: Math.max(0, n) };
     if (!next[id]) delete next[id];
@@ -74,26 +74,23 @@ export function RecipesPage() {
         Cada receta es para una unidad. Poné cuántas van a hacer y abajo sale cuánto comprar, contando cáscaras, corazones y tallos.
       </p>
 
-      {inUse.length > 0 && <Section title="En uso"><Stack>{inUse.map(row)}</Stack></Section>}
-      {later.length > 0 && <Section title="Próximamente"><Stack>{later.map(row)}</Stack></Section>}
-      {old.length > 0 && (
-        <Section>
-          <button type="button" onClick={() => setShowOld(v => !v)}
-            className="flex w-full items-center gap-2 px-1 text-left font-display text-[20px] font-bold tracking-tight">
-            <span className="flex-1">Históricas <span className="text-muted-foreground">{old.length}</span></span>
-            <ChevronDown className={cn('size-5 text-muted-foreground transition-transform', showOld && 'rotate-180')} />
-          </button>
-          {showOld && (
-            <Stack>
-              {old.map(r => (
-                <ListItem key={r._id} leading={<FlavorTile flavor={r} size={44} />} title={r.name} chevron
-                  subtitle={r.note || `${formatAmount(recipeWeight(r))} por ${unitOf(r.unit).one}`}
-                  onClick={() => navigate(`products/recipes/${r._id}`)} className="opacity-75" />
-              ))}
-            </Stack>
-          )}
-        </Section>
-      )}
+      <Chips value={tab} onChange={setTab}
+        options={RECIPE_STATUSES.map(st => ({ id: st.id, label: st.label, count: byStatus(st.id).length }))} />
+      <Stack>
+        {tab === 'historica'
+          ? old.map(r => (
+            <ListItem key={r._id} leading={<FlavorTile flavor={r} size={44} />} title={r.name} chevron
+              subtitle={r.note || `${formatAmount(recipeWeight(r))} por ${unitOf(r.unit).one}`}
+              onClick={() => navigate(`products/recipes/${r._id}`)} />
+          ))
+          : byStatus(tab).map(row)}
+        {recipes.length > 0 && byStatus(tab).length === 0 && (
+          <Card className="px-5 py-6 text-center text-[14px] text-muted-foreground">No hay recetas acá.</Card>
+        )}
+        {tab === 'historica' && old.length > 0 && (
+          <p className="px-1 text-[13px] text-muted-foreground">Las históricas quedan como registro y no entran en la lista de compras.</p>
+        )}
+      </Stack>
       {recipes.length === 0 && <EmptyState emoji="📖" title="Sin recetas">Creá la primera con el botón +.</EmptyState>}
 
       <Section title="Lista de compras" action={planned.length > 0 && (
