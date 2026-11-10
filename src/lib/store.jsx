@@ -6,12 +6,14 @@ import { db } from '@/firebase';
 import {
   BASE_FLAVORS, DEFAULT_PRICE, addQty, cleanQty, consumed, newId, sumQty, movementDelta, countResult, allocatePayment, undoPayment,
 } from '@/lib/data';
+import { SEED_INGREDIENTS, SEED_RECIPES } from '@/lib/recipes';
 
 const StoreContext = createContext(null);
 export const useStore = () => useContext(StoreContext);
 
 const withId = (snap) => snap.docs.map(d => ({ ...d.data(), _id: d.id }));
 const stockRef = doc(db, 'config', 'stock');
+const ingredientsRef = doc(db, 'config', 'ingredients');
 
 // Writes land in the local cache right away and sync in the background, so the
 // UI never waits on the network; only a rejected write (e.g. permissions) is shown.
@@ -64,6 +66,9 @@ export function StoreProvider({ children }) {
   const [archives, setArchives] = useState([]);
   const [locations, setLocations] = useState([]);
   const [allMovements, setAllMovements] = useState([]);
+  const [recipes, setRecipes] = useState([]);
+  // null until the server answers, so the starting recipes are loaded only once.
+  const [ingredientsDoc, setIngredientsDoc] = useState(null);
 
   useEffect(() => {
     const subs = [
@@ -77,6 +82,10 @@ export function StoreProvider({ children }) {
       onSnapshot(doc(db, 'config', 'archives'), s => setArchives(s.exists() ? s.data().list || [] : [])),
       onSnapshot(query(collection(db, 'locations'), orderBy('createdAt')), s => setLocations(withId(s))),
       onSnapshot(query(collection(db, 'movements'), orderBy('date', 'desc')), s => setAllMovements(withId(s))),
+      onSnapshot(query(collection(db, 'recipes'), orderBy('order')), s => setRecipes(withId(s))),
+      onSnapshot(ingredientsRef, { includeMetadataChanges: true }, s => setIngredientsDoc({
+        exists: s.exists(), list: s.exists() ? s.data().list || [] : [], fromCache: s.metadata.fromCache,
+      })),
     ];
     return () => subs.forEach(unsub => unsub());
   }, []);
@@ -91,6 +100,17 @@ export function StoreProvider({ children }) {
     }));
     batch.commit();
   }, [products]);
+
+  // Load the recipes and ingredients we started with, the first time only. The
+  // ingredient list doubles as the "already loaded" flag; it is checked against
+  // the server, not the phone's cache, so it never overwrites real edits.
+  useEffect(() => {
+    if (!ingredientsDoc || ingredientsDoc.fromCache || ingredientsDoc.exists) return;
+    const batch = writeBatch(db);
+    batch.set(ingredientsRef, { list: SEED_INGREDIENTS });
+    SEED_RECIPES.forEach(({ id, ...r }, i) => batch.set(doc(db, 'recipes', id), { ...r, order: i }));
+    save(batch.commit());
+  }, [ingredientsDoc]);
 
   const value = useMemo(() => {
     // Records tagged with an archive id belong to a closed period (Ajustes → Historial).
@@ -218,12 +238,27 @@ export function StoreProvider({ children }) {
       }
     };
 
+    // A batch of freshly made bags goes straight into the general stock.
+    const addProduction = (quantities, note = '') => {
+      const q = cleanQty(quantities);
+      if (!Object.keys(q).length) return;
+      const batch = writeBatch(db);
+      const after = Object.fromEntries(Object.keys(q).map(k => [k, (stock[k] || 0) + q[k]]));
+      batch.set(doc(collection(db, 'movements')), { type: 'production', quantities: q, after, note, date: new Date().toISOString() });
+      bumpStock(q, batch);
+      save(batch.commit());
+    };
+
     return {
       loading, stock, products, partners, settings, archives, locations, movements, allMovements,
       flavors: products?.length ? products : BASE_FLAVORS,
       orders, costs, transfers, allOrders, allCosts, allTransfers,
       placeOrder, placeOrders, editOrder, deleteOrder, closePeriod, payLocation,
-      addMovement, deleteMovement, countLocation,
+      addMovement, deleteMovement, countLocation, addProduction,
+      recipes, ingredients: ingredientsDoc?.list || [],
+      saveRecipe: (id, data) => save(setDoc(doc(db, 'recipes', id), data)),
+      deleteRecipe: (id) => save(deleteDoc(doc(db, 'recipes', id))),
+      saveIngredients: (list) => save(setDoc(ingredientsRef, { list })),
       // Edits made by hand are logged so the inventory has a history.
       setStockCount: (id, n) => {
         const batch = writeBatch(db);
@@ -255,7 +290,7 @@ export function StoreProvider({ children }) {
       savePartners: (list) => save(setDoc(doc(db, 'config', 'partners'), { list })),
       saveSettings: (data) => save(setDoc(doc(db, 'config', 'settings'), data, { merge: true })),
     };
-  }, [loading, stock, products, partners, settings, archives, locations, allOrders, allCosts, allTransfers, allMovements]);
+  }, [loading, stock, products, partners, settings, archives, locations, allOrders, allCosts, allTransfers, allMovements, recipes, ingredientsDoc]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

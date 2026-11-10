@@ -12,6 +12,7 @@ import { RoutesPage } from '@/pages/routes';
 import { CostsPage } from '@/pages/costs';
 import { ProductsPage, ProductPage } from '@/pages/products';
 import { LocationPage, InventoryHistoryPage } from '@/pages/locations';
+import { RecipesPage, RecipePage, IngredientsPage } from '@/pages/recipes';
 import { SettingsPage, PartnersPage, AddressesPage, RecalcPage, HistoryPage, PeriodPage } from '@/pages/settings';
 import logo from '@/assets/frizo-logo.svg';
 
@@ -27,6 +28,8 @@ function Screens({ route }) {
     case 'products':
       if (sub === 'locations' && id) return <LocationPage id={id} />;
       if (sub === 'history') return <InventoryHistoryPage />;
+      if (sub === 'recipes') return id ? <RecipePage id={id} /> : <RecipesPage />;
+      if (sub === 'ingredients') return <IngredientsPage />;
       return sub ? <ProductPage id={sub} /> : <ProductsPage />;
     case 'settings':
       if (sub === 'partners') return <PartnersPage />;

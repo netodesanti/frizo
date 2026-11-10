@@ -106,6 +106,9 @@ test('movements move bags between general stock and the freezer', () => {
   assert.deepEqual(movementDelta({ type: 'manual', quantities: { verde: -3 } }), {
     general: { verde: -3 }, location: {},
   });
+  assert.deepEqual(movementDelta({ type: 'production', quantities: { verde: 30 } }), {
+    general: { verde: 30 }, location: {},
+  });
   assert.deepEqual(movementDelta({ type: 'payment', locationId: 'f1', quantities: {} }), { general: {}, location: {} });
   // Undo is the exact opposite.
   assert.deepEqual(movementDelta({ type: 'restock', locationId: 'f1', quantities: q }, -1), {

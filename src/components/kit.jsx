@@ -210,14 +210,28 @@ export function Chips({ options, value, onChange, className }) {
   );
 }
 
-export function Stepper({ value, onChange, min = 0, showValue = true }) {
+// The number in the middle can be typed over, so 30 bags is one tap instead of thirty.
+export function Stepper({ value, onChange, min = 0, showValue = true, label }) {
+  const [draft, setDraft] = useState(null);
+  const type = (text) => {
+    setDraft(text);
+    const n = parseInt(text, 10);
+    if (!Number.isNaN(n)) onChange(Math.max(min, n));
+    else if (text === '') onChange(Math.max(min, 0));
+  };
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 rounded-full bg-muted p-1">
       <button type="button" aria-label="Menos" disabled={value <= min} onClick={() => onChange(value - 1)}
         className={cn('flex size-8 items-center justify-center rounded-full bg-card shadow-soft disabled:opacity-30', press)}>
         <Minus className="size-4" strokeWidth={2.5} />
       </button>
-      {showValue && <span className="min-w-7 text-center font-display text-[17px] font-bold tabular-nums">{value}</span>}
+      {showValue && (
+        <input type="number" inputMode="numeric" aria-label={label || 'Cantidad'} value={draft ?? value}
+          onChange={e => type(e.target.value)} onFocus={e => e.target.select()} onBlur={() => setDraft(null)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur())}
+          style={{ width: `${Math.max(String(draft ?? value).length, 1) + 1.5}ch` }}
+          className="min-w-9 rounded-full bg-transparent text-center font-display text-[17px] font-bold tabular-nums outline-none focus:bg-card focus:ring-2 focus:ring-brand-lime [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+      )}
       <button type="button" aria-label="Más" onClick={() => onChange(value + 1)}
         className={cn('flex size-8 items-center justify-center rounded-full bg-primary text-brand-lime', press)}>
         <Plus className="size-4" strokeWidth={2.5} />

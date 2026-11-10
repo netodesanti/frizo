@@ -286,7 +286,7 @@ function MoveForm({ mode, loc, onDone }) {
                   {available(f.id)} {fromGeneral ? 'en stock general' : 'en el congelador'}
                 </div>
               </div>
-              <Stepper value={q} onChange={v => { setQuantities(x => ({ ...x, [f.id]: Math.max(0, v) })); setError(''); }} />
+              <Stepper value={q} label={`Bolsas de ${f.name}`} onChange={v => { setQuantities(x => ({ ...x, [f.id]: Math.max(0, v) })); setError(''); }} />
             </Card>
           );
         })}

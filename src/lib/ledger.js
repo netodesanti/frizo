@@ -41,14 +41,15 @@ export function summarize(orders, costs) {
 
 // ─── Stock movements ────────────────────────────────────────────────────────
 // Which way each side moves (+1 gains the bags, -1 loses them). "manual" is a
-// hand edit of the general stock with signed quantities; "payment" moves money,
-// not bags.
+// hand edit of the general stock with signed quantities; "production" is a batch
+// of freshly made bags; "payment" moves money, not bags.
 export const MOVE_SIGNS = {
   restock: { general: -1, location: 1 },
   return:  { general: 1,  location: -1 },
   loss:    { general: 0,  location: -1 },
   adjust:  { general: 0,  location: 1 },
   manual:  { general: 1,  location: 0 },
+  production: { general: 1, location: 0 },
   payment: { general: 0,  location: 0 },
 };
 const signsOf = (type) => MOVE_SIGNS[type] || MOVE_SIGNS.adjust;

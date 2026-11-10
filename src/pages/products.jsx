@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from 'react';
 import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { ArrowDown, ArrowUp, Camera, History, Plus, Rocket } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Camera, CookingPot, History, Plus, Rocket } from 'lucide-react';
 import { db, storage } from '@/firebase';
 import { useStore } from '@/lib/store';
 import { money } from '@/lib/format';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { LocationsSection } from '@/pages/locations';
+import { sumQty } from '@/lib/data';
 import {
-  Screen, Section, Stack, Card, ListItem, TextField, Stepper, Toggle, FlavorTile, Tag, IconButton, Button,
+  Screen, Section, Stack, Card, ListItem, TextField, Stepper, Toggle, FlavorTile, Tag, IconButton, Button, Sheet,
 } from '@/components/kit';
 
 // Vercel deploy hook of the public website; rebuilds it with the latest products.
@@ -37,6 +38,7 @@ function StockCount({ value, onCommit }) {
 export function ProductsPage() {
   const { products, flavors, stock, setStockCount, bumpStockCount } = useStore();
   const [publish, setPublish] = useState('');
+  const [producing, setProducing] = useState(false);
   const list = products || [];
 
   const publishSite = async () => {
@@ -76,8 +78,12 @@ export function ProductsPage() {
             );
           })}
         </div>
+        <Button variant="lime" onClick={() => setProducing(true)}><CookingPot /> Registrar producción</Button>
         <p className="px-1 text-[13px] text-muted-foreground">Stock general: lo que tenés para vender. Se descuenta solo al crear pedidos y vuelve si se cancelan o eliminan.</p>
       </Section>
+
+      <ListItem icon={BookOpen} tone="peach" title="Recetas" subtitle="Cuánta fruta comprar para cada tanda"
+        chevron onClick={() => navigate('products/recipes')} />
 
       <LocationsSection />
 
@@ -99,7 +105,58 @@ export function ProductsPage() {
         <ListItem icon={Rocket} tone="lilac" title="Publicar cambios en el sitio" subtitle={publish || 'Actualiza el sitio web con estos productos'}
           chevron onClick={publishSite} />
       )}
+
+      <Sheet open={producing} onOpenChange={setProducing} title="Registrar producción"
+        confirm={{ label: 'Agregar al stock', form: 'production-form' }}>
+        {producing && <ProductionForm onDone={() => setProducing(false)} />}
+      </Sheet>
     </Screen>
+  );
+}
+
+// Type how many bags were just made; they're added on top of the current stock.
+function ProductionForm({ onDone }) {
+  const { flavors, stock, addProduction } = useStore();
+  const [made, setMade] = useState({});
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const value = (fid) => Math.max(0, parseInt(made[fid], 10) || 0);
+  const quantities = Object.fromEntries(flavors.map(f => [f.id, value(f.id)]));
+  const total = sumQty(quantities);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!total) { setError('Escribí cuántas bolsas hicieron'); return; }
+    addProduction(quantities, note.trim());
+    onDone();
+  };
+
+  return (
+    <form id="production-form" onSubmit={submit} className="space-y-4">
+      <p className="px-1 text-[14px] text-muted-foreground">Escribí cuántas bolsas nuevas hicieron de cada sabor. Se suman al stock general.</p>
+      <Stack>
+        {flavors.map(f => (
+          <Card key={f.id} className={cn('flex items-center gap-3 p-3 pr-4', value(f.id) > 0 && 'ring-2 ring-brand-lime')}>
+            <FlavorTile flavor={f} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[16px] font-semibold">{f.name}</div>
+              <div className="text-[13px] text-muted-foreground">
+                {stock[f.id] || 0} en stock{value(f.id) > 0 && <b className="text-foreground"> → {(stock[f.id] || 0) + value(f.id)}</b>}
+              </div>
+            </div>
+            <input type="number" inputMode="numeric" min="0" placeholder="0" aria-label={`Bolsas nuevas de ${f.name}`}
+              value={made[f.id] ?? ''} onChange={e => { setMade(x => ({ ...x, [f.id]: e.target.value })); setError(''); }}
+              className="h-11 w-20 rounded-2xl bg-muted px-3 text-right font-display text-[20px] font-bold outline-none focus:ring-2 focus:ring-brand-lime" />
+          </Card>
+        ))}
+      </Stack>
+      <TextField label="Nota (opcional)" placeholder="Ej. tanda del lunes" value={note} onChange={e => setNote(e.target.value)} />
+      <div className="flex items-center justify-between rounded-[22px] bg-primary px-5 py-4 text-white">
+        <span className="text-[14px] text-white/70">Bolsas nuevas</span>
+        <span className="font-display text-[26px] font-bold text-brand-lime tabular-nums">+{total}</span>
+      </div>
+      {error && <p className="px-1 text-[14px] font-medium text-destructive">{error}</p>}
+    </form>
   );
 }
 

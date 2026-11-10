@@ -171,10 +171,12 @@ export function RecalcPage() {
   // Point-of-sale sales come out of that location, not the general stock.
   const sold = (id) => sumBy(orders.filter(o => !isLocationSale(o)), o => consumed(o)[id]);
   // Bags sent to points of sale (minus the ones brought back). Hand edits are what's being redone, so they don't count.
-  const placed = (id) => -sumBy(movements.filter(m => m.type !== 'manual'), m => movementOf(m.type).general * (m.quantities?.[id] || 0));
+  const placed = (id) => -sumBy(movements.filter(m => !['manual', 'production'].includes(m.type)), m => movementOf(m.type).general * (m.quantities?.[id] || 0));
+  // Bags made during the period.
+  const produced = (id) => sumBy(movements.filter(m => m.type === 'production'), m => m.quantities?.[id]);
 
   const run = () => {
-    const next = Object.fromEntries(flavors.map(f => [f.id, (parseInt(initial[f.id], 10) || 0) - sold(f.id) - placed(f.id)]));
+    const next = Object.fromEntries(flavors.map(f => [f.id, (parseInt(initial[f.id], 10) || 0) + produced(f.id) - sold(f.id) - placed(f.id)]));
     if (!window.confirm('Esto reemplaza el inventario actual. ¿Continuar?')) return;
     replaceStock(next);
     setResult(next);
@@ -183,7 +185,7 @@ export function RecalcPage() {
   return (
     <Screen title="Recalcular inventario" back={back}>
       <p className="px-1 text-[14px] text-muted-foreground">
-        Escribí cuántas bolsas había al empezar el período. Se restan las de los pedidos actuales (sin contar los cancelados) y las que están en puntos de venta.
+        Escribí cuántas bolsas había al empezar el período. Se suman las producciones registradas y se restan las de los pedidos actuales (sin contar los cancelados) y las que están en puntos de venta.
       </p>
       <Stack>
         {flavors.map(f => (
@@ -191,7 +193,7 @@ export function RecalcPage() {
             <FlavorTile flavor={f} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[16px] font-semibold">{f.name}</div>
-              <div className="text-[13px] text-muted-foreground">{sold(f.id)} vendidas{placed(f.id) ? ` · ${placed(f.id)} en puntos de venta` : ''}</div>
+              <div className="text-[13px] text-muted-foreground">{produced(f.id) ? `${produced(f.id)} producidas · ` : ''}{sold(f.id)} vendidas{placed(f.id) ? ` · ${placed(f.id)} en puntos de venta` : ''}</div>
             </div>
             <input type="number" inputMode="numeric" placeholder="0" aria-label={`Stock inicial de ${f.name}`}
               value={initial[f.id] ?? ''} onChange={e => { setInitial(x => ({ ...x, [f.id]: e.target.value })); setResult(null); }}

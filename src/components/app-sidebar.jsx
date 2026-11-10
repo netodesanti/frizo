@@ -1,5 +1,5 @@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
-import { Route } from 'lucide-react';
+import { BookOpen, Route } from 'lucide-react';
 import { navigate } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { TABS } from '@/components/tab-bar';
@@ -7,7 +7,11 @@ import logo from '@/assets/frizo-logo.svg';
 
 // Desktop navigation; phones use the tab bar.
 export function AppSidebar({ tab, route, totalStock }) {
-	const items = [...TABS.slice(0, 2), { key: 'orders/routes', label: 'Rutas', icon: Route }, ...TABS.slice(2)];
+	const items = [
+		...TABS.slice(0, 2), { key: 'orders/routes', label: 'Rutas', icon: Route },
+		...TABS.slice(2, 4), { key: 'products/recipes', label: 'Recetas', icon: BookOpen },
+		...TABS.slice(4),
+	];
 	const isActive = (key) => key.includes('/') ? route.startsWith(key) : tab === key && !items.some(i => i.key.includes('/') && route.startsWith(i.key));
 
 	return (

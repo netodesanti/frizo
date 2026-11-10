@@ -1,4 +1,4 @@
-import { Apple, Package, Car, Megaphone, Wrench, Tag, PackagePlus, Undo2, PackageMinus, ClipboardCheck, SlidersHorizontal, HandCoins } from 'lucide-react';
+import { Apple, Package, Car, Megaphone, Wrench, Tag, PackagePlus, Undo2, PackageMinus, ClipboardCheck, SlidersHorizontal, HandCoins, CookingPot } from 'lucide-react';
 import { auth } from '@/firebase';
 import { MOVE_SIGNS } from '@/lib/ledger';
 
@@ -48,6 +48,7 @@ const MOVEMENT_LOOK = {
   loss:    { label: 'Pérdida',           icon: PackageMinus,      tone: 'blush' },
   adjust:  { label: 'Ajuste por conteo', icon: ClipboardCheck,    tone: 'sky' },
   manual:  { label: 'Ajuste manual',     icon: SlidersHorizontal, tone: 'gray' },
+  production: { label: 'Producción',     icon: CookingPot,        tone: 'lime' },
   payment: { label: 'Pago recibido',     icon: HandCoins,         tone: 'mint' },
 };
 export const MOVEMENTS = Object.fromEntries(Object.entries(MOVEMENT_LOOK).map(([k, v]) => [k, { ...v, ...MOVE_SIGNS[k] }]));
