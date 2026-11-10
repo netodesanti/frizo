@@ -4,7 +4,7 @@ import { useStore } from '@/lib/store';
 import { navigate, goBack } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import {
-  UNITS, RECIPE_STATUSES, batchNeeds, countOf, formatAmount, recipeStatus, recipeWeight, slugify, unitOf, usableOf,
+  UNITS, RECIPE_STATUSES, batchNeeds, recipeBatch, countOf, formatAmount, recipeStatus, recipeWeight, slugify, unitOf, usableOf,
 } from '@/lib/recipes';
 import {
   Screen, Section, Stack, Card, ListItem, TextField, Stepper, FlavorTile, Tag, IconButton, Button, Chips,
@@ -71,7 +71,7 @@ export function RecipesPage() {
     <Screen title="Recetas" eyebrow="Cuánta fruta comprar" back={{ label: 'Productos', onClick: () => goBack('products') }}
       actions={<IconButton icon={Plus} label="Nueva receta" dark onClick={() => navigate('products/recipes/new')} />}>
       <p className="px-1 text-[14px] text-muted-foreground">
-        Cada receta es para una unidad. Poné cuántas van a hacer y abajo sale cuánto comprar, contando cáscaras, corazones y tallos.
+        Cada receta es para una unidad. Poné cuántas van a hacer y abajo sale cuánto comprar, contando cáscaras, corazones y tallos, y cuánto va de cada fruta en cada receta.
       </p>
 
       <Chips value={tab} onChange={setTab}
@@ -130,6 +130,44 @@ export function RecipesPage() {
           </Card>
         )}
       </Section>
+
+      {planned.length > 0 && (
+        <Section title="Para preparar">
+          <p className="px-1 text-[13px] text-muted-foreground">Cuánto va de cada fruta ya limpia, receta por receta.</p>
+          <Stack>
+            {planned.map(r => {
+              const n = counts[r._id];
+              return (
+                <Card key={r._id} className="overflow-hidden">
+                  <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">
+                    <FlavorTile flavor={r} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[16px] font-semibold">{r.name}</div>
+                      <div className="text-[13px] text-muted-foreground">{countOf(n, r.unit)} · {formatAmount(recipeWeight(r) * n)} en total</div>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {recipeBatch(r, n, ingredients).map(i => (
+                      <div key={i.id} className="flex items-center gap-3 px-5 py-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[16px] font-semibold">{i.name}</div>
+                          <div className="text-[13px] text-muted-foreground">{formatAmount(i.per, i.unit)} × {n}</div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="font-display text-[19px] font-bold tabular-nums">{formatAmount(i.total, i.unit)}</div>
+                          {i.total >= 1000 && (
+                            <div className="text-[12px] text-muted-foreground tabular-nums">{Math.round(i.total).toLocaleString('es')} {i.unit}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              );
+            })}
+          </Stack>
+        </Section>
+      )}
 
       <ListItem icon={Carrot} tone="peach" title="Ingredientes y desperdicio" subtitle="Cuánto de cada fruta se aprovecha"
         chevron onClick={() => navigate('products/ingredients')} />

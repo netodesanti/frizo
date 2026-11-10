@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { batchNeeds, formatAmount, recipeWeight, recipeStatus, usableOf, SEED_RECIPES, SEED_INGREDIENTS } from './recipes.js';
+import { batchNeeds, recipeBatch, formatAmount, recipeWeight, recipeStatus, usableOf, SEED_RECIPES, SEED_INGREDIENTS } from './recipes.js';
 
 const ingredients = [
   { id: 'pina', name: 'Piña', unit: 'g', usable: 50 },
@@ -34,6 +34,15 @@ test('batchNeeds skips recipes with no units and sorts by purchase', () => {
 test('an unknown ingredient counts as fully usable', () => {
   const rows = batchNeeds([{ _id: 'x', items: [{ ingredient: 'kiwi', amount: 10 }] }], { x: 2 }, []);
   assert.deepEqual(rows[0], { id: 'kiwi', name: 'kiwi', unit: 'g', usable: 100, use: 20, buy: 20 });
+});
+
+test('recipeBatch gives each ingredient for n units, clean, in recipe order', () => {
+  const rows = recipeBatch(recipes[1], 100, ingredients);
+  assert.deepEqual(rows, [
+    { id: 'pina', name: 'Piña', unit: 'g', per: 10, total: 1000 },
+    { id: 'agua', name: 'Agua', unit: 'ml', per: 4, total: 400 },
+  ]);
+  assert.equal(recipeBatch({ items: [{ ingredient: 'kiwi', amount: 0 }] }, 5, []).length, 0);
 });
 
 test('usableOf falls back to 100 for missing or invalid values', () => {

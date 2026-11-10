@@ -48,6 +48,19 @@ export function batchNeeds(recipes, counts, ingredients) {
     .sort((a, b) => b.buy - a.buy);
 }
 
+// What goes into `n` units of one recipe, clean (already peeled), in the
+// order the recipe lists them. `per` is the amount for one unit.
+export function recipeBatch(recipe, n, ingredients) {
+  const units = Number(n) || 0;
+  return (recipe.items || [])
+    .filter(item => Number(item.amount) > 0)
+    .map(item => {
+      const ing = ingredients.find(i => i.id === item.ingredient);
+      const per = Number(item.amount);
+      return { id: item.ingredient, name: ing?.name || item.ingredient, unit: ing?.unit || 'g', per, total: per * units };
+    });
+}
+
 // Anything outside 1–100 is treated as "all of it is usable".
 export const usableOf = (ing) => {
   const u = Number(ing?.usable);
