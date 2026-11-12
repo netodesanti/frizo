@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/firebase';
+import { auth, hasSavedLogin } from '@/firebase';
 import { TextField, Button } from '@/components/kit';
 import logo from '@/assets/frizo-logo.svg';
 import { Splash } from '@/components/splash';
@@ -64,7 +64,9 @@ function LoginForm() {
 }
 
 export function AuthGate({ children }) {
-	const [user, setUser] = useState(undefined);
+	// With a login saved on the phone the app opens right away; Firebase's check
+	// with Google finishes in the background and only shows the login if it fails.
+	const [user, setUser] = useState(() => auth.currentUser || (hasSavedLogin() ? 'saved' : undefined));
 
 	useEffect(() => onAuthStateChanged(auth, setUser), []);
 

@@ -1,5 +1,5 @@
 import { Apple, Package, Car, Megaphone, Wrench, Tag, PackagePlus, Undo2, PackageMinus, ClipboardCheck, SlidersHorizontal, HandCoins, CookingPot } from 'lucide-react';
-import { auth } from '@/firebase';
+import { signedInEmail } from '@/firebase';
 import { MOVE_SIGNS } from '@/lib/ledger';
 
 export * from '@/lib/ledger';
@@ -101,7 +101,7 @@ export function settleUp(partners, balances) {
 }
 
 export const myPartnerId = (partners) => {
-  const email = auth.currentUser?.email?.toLowerCase();
+  const email = signedInEmail().toLowerCase();
   return partners.find(p => email && p.email?.toLowerCase() === email)?.id;
 };
 

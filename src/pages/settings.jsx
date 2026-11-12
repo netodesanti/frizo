@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { Archive, ArrowLeftRight, Calculator, LogOut, MapPin, Pencil, Plus, Users } from 'lucide-react';
-import { auth } from '@/firebase';
+import { auth, signedInEmail } from '@/firebase';
 import { useStore } from '@/lib/store';
 import { COMPANY, newId, partnerBalances, summarize, sumBy, consumed, categoryOf, myPartnerId, isLocationSale, movementOf } from '@/lib/data';
 import { money, formatDay, formatRange } from '@/lib/format';
@@ -17,7 +17,7 @@ const back = { label: 'Ajustes', onClick: () => goBack('settings') };
 
 export function SettingsPage() {
   const { partners, settings, archives } = useStore();
-  const email = auth.currentUser?.email || '';
+  const email = signedInEmail();
   const me = partners.find(p => p.id === myPartnerId(partners));
   const name = me?.name || email.split('@')[0];
 
@@ -91,7 +91,7 @@ export function PartnersPage() {
 
 function PartnerForm({ partner, onSubmit, onDelete }) {
   const [name, setName] = useState(partner?.name || '');
-  const [email, setEmail] = useState(partner?.email ?? (partner ? '' : auth.currentUser?.email || ''));
+  const [email, setEmail] = useState(partner?.email ?? (partner ? '' : signedInEmail()));
   const [error, setError] = useState('');
 
   const submit = (e) => {
