@@ -14,7 +14,7 @@ import { ProductsPage, ProductPage } from '@/pages/products';
 import { LocationPage, InventoryHistoryPage } from '@/pages/locations';
 import { RecipesPage, RecipePage, IngredientsPage } from '@/pages/recipes';
 import { SettingsPage, PartnersPage, AddressesPage, RecalcPage, HistoryPage, PeriodPage } from '@/pages/settings';
-import logo from '@/assets/frizo-logo.svg';
+import { Splash } from '@/components/splash';
 
 function Screens({ route }) {
   const [tab, sub, id] = route.split('/');
@@ -47,11 +47,7 @@ function Shell() {
   const tab = route.split('/')[0];
 
   if (loading) {
-    return (
-      <div className="flex min-h-svh items-center justify-center">
-        <img src={logo} alt="Frizo" className="h-10 w-auto animate-pulse" />
-      </div>
-    );
+    return <Splash />;
   }
 
   return (

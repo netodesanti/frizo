@@ -30,6 +30,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // iOS reads the launch images itself when the app is added to the home screen.
+        globIgnores: ['splash/**'],
         navigateFallback: '/index.html',
       },
     }),

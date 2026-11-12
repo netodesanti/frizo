@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { FileSpreadsheet, X } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { BASE_FLAVORS, DEFAULT_PRICE, newId } from '@/lib/data';
@@ -27,7 +26,11 @@ export function BulkUploadPage() {
     if (!file) return;
     setFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
+      // The Excel reader is big and rarely used, so it's only downloaded here.
+      // If a new version was deployed meanwhile, the old file is gone: reload to get the new one.
+      let XLSX;
+      try { XLSX = await import('xlsx'); } catch { window.location.reload(); return; }
       try {
         const wb = XLSX.read(evt.target.result, { type: 'array' });
         const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });

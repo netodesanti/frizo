@@ -3,6 +3,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail 
 import { auth } from '@/firebase';
 import { TextField, Button } from '@/components/kit';
 import logo from '@/assets/frizo-logo.svg';
+import { Splash } from '@/components/splash';
 
 const ERRORS = {
 	'auth/invalid-credential': 'Correo o contraseña incorrectos',
@@ -67,7 +68,7 @@ export function AuthGate({ children }) {
 
 	useEffect(() => onAuthStateChanged(auth, setUser), []);
 
-	if (user === undefined) return <div className="min-h-svh" />;
+	if (user === undefined) return <Splash />;
 	if (!user) return <LoginForm />;
 	return children;
 }
